@@ -1,4 +1,4 @@
-# dashboard_v2.py
+# dashboard_v3.py
 import streamlit as st
 import pandas as pd
 import gspread
@@ -52,6 +52,10 @@ def load_all_data(_spreadsheet):
     consolidated_df = pd.concat(all_dfs, ignore_index=True)
     
     # Limpeza e formatação dos dados
+    # Garante que 'Resposta' seja tratado consistentemente, convertendo para string
+    consolidated_df['Resposta'] = consolidated_df['Resposta'].astype(str).str.strip() 
+    
+    # Converte a coluna 'Data' para o formato de data
     consolidated_df['Data'] = pd.to_datetime(consolidated_df['Data'], errors='coerce', dayfirst=True)
     consolidated_df = consolidated_df.dropna(subset=['Data'])
 
@@ -67,7 +71,7 @@ if df.empty:
     st.warning("Não foi possível carregar nenhum dado das planilhas. Verifique se as abas de resposta contêm dados e cabeçalhos.")
     st.stop()
 
-# --- BARRA LATERAL DE FILTROS (MODIFICADA) ---
+# --- BARRA LATERAL DE FILTROS ---
 st.sidebar.header("Filtros")
 
 # Filtro por Respondente
@@ -84,7 +88,7 @@ data_selecionada = st.sidebar.date_input(
     max_value=max_date
 )
 
-# Filtro por Dimensão (agora com multiselect)
+# Filtro por Dimensão (multiselect)
 lista_dimensoes = df['Dimensão'].dropna().unique().tolist()
 dimensoes_selecionadas = st.sidebar.multiselect("Filtrar por Dimensão (opcional):", options=lista_dimensoes)
 
@@ -106,32 +110,75 @@ if dimensoes_selecionadas:
     df_filtrado = df_filtrado[df_filtrado['Dimensão'].isin(dimensoes_selecionadas)]
 
 
-# --- EXIBIÇÃO DOS RESULTADOS (MODIFICADO) ---
+# --- EXIBIÇÃO DOS RESULTADOS ---
 st.header("Distribuição Geral das Respostas")
 
 if df_filtrado.empty:
     st.info("Nenhuma resposta encontrada para os filtros selecionados.")
 else:
-    # Contagem de todas as respostas no DataFrame filtrado
-    contagem_respostas = df_filtrado['Resposta'].value_counts()
+    # --- Processamento das respostas para o gráfico ---
+    # Garante que estamos contando apenas as respostas válidas para o Likert e 'N/A'
+    respostas_validas = ['1', '2', '3', '4', '5', 'N/A']
+    df_respostas_para_grafico = df_filtrado[df_filtrado['Resposta'].isin(respostas_validas)]
     
-    # Criação do gráfico de pizza
-    st.subheader("Gráfico de Respostas Agregadas")
-    fig, ax = plt.subplots()
-    
-    ax.pie(
-        contagem_respostas,
-        labels=contagem_respostas.index,
-        autopct='%1.1f%%',
-        startangle=90,
-        pctdistance=0.85
-    )
-    ax.axis('equal')
+    if df_respostas_para_grafico.empty:
+        st.info("Nenhuma resposta válida (1-5 ou N/A) encontrada para os filtros selecionados.")
+    else:
+        contagem_respostas = df_respostas_para_grafico['Resposta'].value_counts()
+        
+        # Ordena as labels para melhor visualização (1, 2, 3, 4, 5, N/A)
+        ordem_labels = [str(i) for i in range(1, 6)] + ['N/A']
+        contagem_respostas = contagem_respostas.reindex(ordem_labels, fill_value=0)
+        contagem_respostas = contagem_respostas[contagem_respostas > 0] # Remove categorias com zero
 
-    centre_circle = plt.Circle((0,0),0.70,fc='white')
-    fig.gca().add_artist(centre_circle)
-    
-    st.pyplot(fig)
+        if contagem_respostas.empty:
+            st.info("Nenhuma resposta válida para exibir no gráfico após a reindexação.")
+        else:
+            # --- Criação do gráfico de pizza ---
+            st.subheader("Gráfico de Respostas Agregadas")
+            fig, ax = plt.subplots(figsize=(8, 8)) # Aumenta um pouco o tamanho do gráfico
+            
+            wedges, texts, autotexts = ax.pie(
+                x=contagem_respostas,
+                labels=None, # Remove as labels diretas das fatias
+                autopct='%1.1f%%',
+                startangle=90,
+                pctdistance=0.85,
+                wedgeprops=dict(width=0.3) # Para o gráfico de donut
+            )
+            ax.axis('equal') # Garante que a pizza seja um círculo
+
+            # Adiciona um círculo no centro para criar um gráfico de "donut"
+            centre_circle = plt.Circle((0,0),0.70,fc='white')
+            fig.gca().add_artist(centre_circle)
+            
+            # Ajusta o tamanho da fonte das porcentagens
+            for autotext in autotexts:
+                autotext.set_color('black')
+                autotext.set_fontsize(10) # Ajuste conforme necessário
+            
+            st.pyplot(fig)
+
+            # --- Legenda Separada Abaixo do Gráfico ---
+            st.subheader("Significado das Respostas:")
+            legend_data = {
+                '1': '1 = Discordo totalmente',
+                '2': '2 = Discordo parcialmente',
+                '3': '3 = Neutro / Nem discordo nem concordo',
+                '4': '4 = Concordo parcialmente',
+                '5': '5 = Concordo totalmente',
+                'N/A': 'N/A = Não se aplica / Não sei responder'
+            }
+            
+            # Exibe a legenda em colunas para organização
+            cols = st.columns(3) # Pode ajustar o número de colunas
+            col_idx = 0
+            for label_key in ordem_labels: # Usa a ordem definida
+                if label_key in contagem_respostas.index: # Mostra apenas o que está presente no gráfico
+                    with cols[col_idx % 3]:
+                        st.markdown(f"**{label_key}**: {legend_data.get(label_key, 'Desconhecido')}")
+                    col_idx += 1
+
 
 # Exibição dos dados brutos filtrados
 with st.expander("Ver dados filtrados"):
