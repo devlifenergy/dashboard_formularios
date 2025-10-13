@@ -1,0 +1,34 @@
+name: Ping Streamlit App with Click
+
+on:
+  schedule:
+    # Roda todos os dias às 12:00 UTC (9:00 no horário de Brasília)
+    # Você pode ajustar o horário. "0 12 * * *" significa "às 12h00, todos os dias".
+    - cron: '0 */2 * * *'
+  
+  # Esta linha é essencial para o teste manual:
+  workflow_dispatch:
+
+jobs:
+  ping-and-click:
+    runs-on: ubuntu-latest # Usa uma máquina virtual Linux gratuita
+    steps:
+      # 1. Baixa o seu código do repositório
+      - name: Check out repository
+        uses: actions/checkout@v3
+
+      # 2. Configura o ambiente Python
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      # 3. Instala o Playwright e os navegadores
+      - name: Install Playwright and browsers
+        run: |
+          pip install playwright
+          playwright install
+
+      # 4. Executa o seu script pinger.py
+      - name: Run the ping and click script
+        run: python pinger.py

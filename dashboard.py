@@ -11,6 +11,14 @@ st.set_page_config(
     layout="wide"
 )
 
+st.markdown("""
+    <style>
+        #autoclick-div {
+            display: none;
+        }
+    </style>
+""", unsafe_allow_html=True)
+
 # --- LISTA MESTRA DE TODAS AS PERGUNTAS ---
 @st.cache_data
 def carregar_itens_master():
@@ -456,3 +464,10 @@ else:
 # Expander com dados brutos
 with st.expander("Ver dados filtrados"):
     st.dataframe(df_filtrado)
+
+with st.container():
+    st.markdown('<div id="autoclick-div">', unsafe_allow_html=True)
+    if st.button("Ping Button", key="autoclick_button"):
+    # A ação aqui pode ser um simples print no log do Streamlit
+      print("Ping button clicked by automation.")
+    st.markdown('</div>', unsafe_allow_html=True)
