@@ -443,7 +443,7 @@ else:
                 values, 
                 labels=slice_labels, 
                 startangle=90,
-                textprops=dict(color="w", size=12, weight="bold")
+                textprops=dict(color="black", size=14, weight="bold") 
             )
             ax.axis('equal')
             
