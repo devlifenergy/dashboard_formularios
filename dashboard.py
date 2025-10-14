@@ -13,9 +13,9 @@ st.set_page_config(
 
 st.markdown("""
     <style>
-        #autoclick-div {
+        #autoclick-div {{
             display: none;
-        }
+        }}
     </style>
 """, unsafe_allow_html=True)
 
