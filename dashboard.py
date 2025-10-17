@@ -387,7 +387,7 @@ def load_all_data(_spreadsheet, _df_master, _rerun_trigger):
     consolidated_df = consolidated_df.dropna(subset=['Data'])
     return consolidated_df
 
-# --- INÍCIO DA APLICAÇÃO ---
+# ##### CABEÇALHO MODIFICADO #####
 st.title("📊 Dashboard de Análise de Respostas")
 
 # Botão para recarregar dados, agora abaixo do título e à esquerda
@@ -397,7 +397,12 @@ if st.button("CARREGAR DADOS", key="load_data_button"):
     # st.cache_resource.clear() # Limpa o cache de recursos (conexão) se necessário
     st.success("Dados recarregados!")
     st.rerun() # Força a reexecução do script
+# ##### FIM DO CABEÇALHO MODIFICADO #####
 
+# Carrega os dados após a definição do botão (para que o rerun funcione)
+df_master_itens = carregar_itens_master()
+spreadsheet = connect_to_gsheet()
+df = load_all_data(spreadsheet, df_master_itens, st.session_state.rerun_counter)
 if df.empty:
     st.warning("Não foi possível carregar ou processar dados das planilhas.")
     st.stop()
