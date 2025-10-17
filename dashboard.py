@@ -21,8 +21,6 @@ st.markdown(f"""
     </style>
 """, unsafe_allow_html=True)
 
-if 'rerun_counter' not in st.session_state:
-    st.session_state.rerun_counter = 0
 # --- LISTA MESTRA DE TODAS AS PERGUNTAS ---
 @st.cache_data
 def carregar_itens_master():
@@ -392,12 +390,14 @@ st.title("📊 Dashboard de Análise de Respostas")
 
 # Botão para recarregar dados, agora abaixo do título e à esquerda
 if st.button("CARREGAR DADOS", key="load_data_button"):
-    st.session_state.rerun_counter += 1
-    # st.cache_data.clear() # Limpa o cache de dados explicitamente
-    # st.cache_resource.clear() # Limpa o cache de recursos (conexão) se necessário
-    st.success("Dados recarregados!")
-    st.rerun() # Força a reexecução do script
-# ##### FIM DO CABEÇALHO MODIFICADO #####
+    # Limpa o cache especificamente para esta função
+    load_all_data.clear()
+    st.success("Forçando recarregamento dos dados...")
+    st.rerun() # Reexecuta o script para carregar os dados frescos
+
+df_master_itens = carregar_itens_master()
+spreadsheet = connect_to_gsheet()
+df = load_all_data(spreadsheet, df_master_itens) # Argumento _rerun_trigger removido
 
 # Carrega os dados após a definição do botão (para que o rerun funcione)
 df_master_itens = carregar_itens_master()
