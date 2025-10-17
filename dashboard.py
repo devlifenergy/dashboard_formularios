@@ -394,6 +394,22 @@ df_master_itens = carregar_itens_master()
 spreadsheet = connect_to_gsheet()
 df = load_all_data(spreadsheet, df_master_itens)
 
+col1, col2, col3 = st.columns([1, 4, 1]) # Adicionada terceira coluna
+with col1:
+    try:
+        st.image("logo_wedja.jpg", width=120)
+    except FileNotFoundError:
+        st.warning("Logo 'logo_wedja.jpg' não encontrada.")
+with col2:
+    # Espaço reservado para o título, se necessário, ou pode ficar vazio
+    st.markdown("") # Placeholder para alinhar o botão à direita
+with col3:
+    # ##### ADICIONADO: Botão para recarregar dados #####
+    if st.button("CARREGAR DADOS", key="load_data_button"):
+        st.session_state.rerun_counter += 1
+        st.success("Dados recarregados!")
+        st.rerun() # Força a reexecução do script
+
 if df.empty:
     st.warning("Não foi possível carregar ou processar dados das planilhas.")
     st.stop()
@@ -467,6 +483,7 @@ else:
 with st.expander("Ver dados filtrados"):
     st.dataframe(df_filtrado)
 
+with st.empty():
     st.markdown('<div id="autoclick-div">', unsafe_allow_html=True)
     if st.button("Ping Button", key="autoclick_button"):
         print("Ping button clicked by automation.")
