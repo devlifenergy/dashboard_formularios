@@ -378,8 +378,15 @@ def load_all_data(_spreadsheet, _df_master, _rerun_trigger):
     consolidated_df = pd.merge(consolidated_df, _df_master[['Item', 'Reverso']], on='Item', how='left')
     consolidated_df['Resposta_Num'] = pd.to_numeric(consolidated_df['Resposta'], errors='coerce')
     def ajustar_reverso(row):
-        if pd.isna(row['Resposta_Num']): return None
-        return (6 - row['Resposta_Num']) if row['Reverso'] == 'SIM' else row['Resposta_Num']
+        # Primeiro, verifica se a pontuação é válida
+        if pd.isna(row['Resposta_Num']): 
+            return None
+        # Verifica se a coluna 'Reverso' existe, não é NaN E é igual a 'SIM'
+        if pd.notna(row['Reverso']) and row['Reverso'] == 'SIM': 
+            return 6 - row['Resposta_Num']
+        # Caso contrário, retorna a pontuação normal
+        else:
+            return row['Resposta_Num']
     consolidated_df['Pontuação'] = consolidated_df.apply(ajustar_reverso, axis=1)
     consolidated_df['Data'] = pd.to_datetime(consolidated_df['Data'], errors='coerce', dayfirst=True)
     consolidated_df = consolidated_df.dropna(subset=['Data'])
