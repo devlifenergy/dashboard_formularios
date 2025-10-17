@@ -21,6 +21,8 @@ st.markdown(f"""
     </style>
 """, unsafe_allow_html=True)
 
+if 'rerun_counter' not in st.session_state:
+    st.session_state.rerun_counter = 0
 # --- LISTA MESTRA DE TODAS AS PERGUNTAS ---
 @st.cache_data
 def carregar_itens_master():
@@ -356,33 +358,31 @@ def connect_to_gsheet():
     return spreadsheet
 
 @st.cache_data(ttl=600)
-def load_all_data(_spreadsheet, _df_master):
+def load_all_data(_spreadsheet, _df_master, _rerun_trigger):
+    # O _rerun_trigger não é usado, mas sua mudança invalida o cache
     if _spreadsheet is None: return pd.DataFrame()
     worksheets = _spreadsheet.worksheets()
     all_dfs = []
+    # ... (lógica de leitura das abas permanece a mesma) ...
     for ws in worksheets:
-        if "observacoes" not in ws.title.lower() and "teste" not in ws.title.lower():
-            try:
-                data = ws.get_all_records()
-                if data:
-                    df = pd.DataFrame(data)
-                    all_dfs.append(df)
-            except Exception as e:
-                st.warning(f"Não foi possível ler a aba '{ws.title}': {e}")
+         if "observacoes" not in ws.title.lower() and "teste" not in ws.title.lower():
+             try:
+                 data = ws.get_all_records()
+                 if data:
+                     df = pd.DataFrame(data)
+                     all_dfs.append(df)
+             except Exception as e:
+                 st.warning(f"Não foi possível ler a aba '{ws.title}': {e}")
     if not all_dfs: return pd.DataFrame()
     consolidated_df = pd.concat(all_dfs, ignore_index=True)
     
-    # Junta com a lista mestra para obter o status 'Reverso' de cada item
+    # --- CÁLCULO DA PONTUAÇÃO ---
     consolidated_df = pd.merge(consolidated_df, _df_master[['Item', 'Reverso']], on='Item', how='left')
-    
     consolidated_df['Resposta_Num'] = pd.to_numeric(consolidated_df['Resposta'], errors='coerce')
-    
     def ajustar_reverso(row):
         if pd.isna(row['Resposta_Num']): return None
         return (6 - row['Resposta_Num']) if row['Reverso'] == 'SIM' else row['Resposta_Num']
-        
     consolidated_df['Pontuação'] = consolidated_df.apply(ajustar_reverso, axis=1)
-
     consolidated_df['Data'] = pd.to_datetime(consolidated_df['Data'], errors='coerce', dayfirst=True)
     consolidated_df = consolidated_df.dropna(subset=['Data'])
     return consolidated_df
@@ -392,7 +392,7 @@ st.title("📊 Dashboard de Análise de Respostas")
 
 df_master_itens = carregar_itens_master()
 spreadsheet = connect_to_gsheet()
-df = load_all_data(spreadsheet, df_master_itens)
+df = load_all_data(spreadsheet, df_master_itens, st.session_state.rerun_counter)
 
 col1, col2, col3 = st.columns([1, 4, 1]) # Adicionada terceira coluna
 with col1:
