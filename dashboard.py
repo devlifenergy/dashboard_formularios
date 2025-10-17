@@ -356,7 +356,7 @@ def connect_to_gsheet():
     return spreadsheet
 
 @st.cache_data(ttl=600)
-def load_all_data(_spreadsheet, _df_master, _rerun_trigger):
+def load_all_data(_spreadsheet, _df_master):
     # O _rerun_trigger não é usado, mas sua mudança invalida o cache
     if _spreadsheet is None: return pd.DataFrame()
     worksheets = _spreadsheet.worksheets()
