@@ -390,25 +390,13 @@ def load_all_data(_spreadsheet, _df_master, _rerun_trigger):
 # --- INÍCIO DA APLICAÇÃO ---
 st.title("📊 Dashboard de Análise de Respostas")
 
-df_master_itens = carregar_itens_master()
-spreadsheet = connect_to_gsheet()
-df = load_all_data(spreadsheet, df_master_itens, st.session_state.rerun_counter)
-
-col1, col2, col3 = st.columns([1, 4, 1]) # Adicionada terceira coluna
-with col1:
-    try:
-        st.image("logo_wedja.jpg", width=120)
-    except FileNotFoundError:
-        st.warning("Logo 'logo_wedja.jpg' não encontrada.")
-with col2:
-    # Espaço reservado para o título, se necessário, ou pode ficar vazio
-    st.markdown("") # Placeholder para alinhar o botão à direita
-with col3:
-    # ##### ADICIONADO: Botão para recarregar dados #####
-    if st.button("CARREGAR DADOS", key="load_data_button"):
-        st.session_state.rerun_counter += 1
-        st.success("Dados recarregados!")
-        st.rerun() # Força a reexecução do script
+# Botão para recarregar dados, agora abaixo do título e à esquerda
+if st.button("CARREGAR DADOS", key="load_data_button"):
+    st.session_state.rerun_counter += 1
+    # st.cache_data.clear() # Limpa o cache de dados explicitamente
+    # st.cache_resource.clear() # Limpa o cache de recursos (conexão) se necessário
+    st.success("Dados recarregados!")
+    st.rerun() # Força a reexecução do script
 
 if df.empty:
     st.warning("Não foi possível carregar ou processar dados das planilhas.")
