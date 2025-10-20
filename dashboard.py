@@ -4,6 +4,7 @@ import pandas as pd
 import gspread
 import matplotlib.pyplot as plt
 from datetime import datetime
+import urllib.parse
 
 # --- CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(
@@ -391,6 +392,39 @@ def load_all_data(_spreadsheet, _df_master):
     consolidated_df['Data'] = pd.to_datetime(consolidated_df['Data'], errors='coerce', dayfirst=True)
     consolidated_df = consolidated_df.dropna(subset=['Data'])
     return consolidated_df
+# --- GERADOR DE LINKS DE FORMULÁRIO ---
+st.header("🔗 Gerador de Links para Formulários")
+
+with st.container(border=True):
+    st.markdown("Preencha o nome da Organização Coletora e selecione o formulário para gerar um link pré-preenchido e não editável.")
+
+    # Input para o nome da Organização Coletora
+    org_coletora_input = st.text_input("Nome da Organização Coletora:", key="input_org_link")
+
+    # Mapeamento de nomes amigáveis para as URLs base dos seus apps
+    apps_urls = {
+        "Fatores Essenciais": "https://seu-app-fatores-essenciais.streamlit.app/",
+    }
+
+    form_selecionado = st.selectbox("Selecione o Formulário:", options=list(apps_urls.keys()))
+
+    if st.button("Gerar Link", key="generate_link_button"):
+        if not org_coletora_input:
+            st.warning("Por favor, insira o nome da Organização Coletora.")
+        elif not form_selecionado:
+             st.warning("Por favor, selecione um formulário.")
+        else:
+            base_url = apps_urls[form_selecionado]
+            # Codifica o nome da organização para ser seguro na URL
+            org_encoded = urllib.parse.quote(org_coletora_input)
+            # Monta a URL final com o parâmetro 'org'
+            link_final = f"{base_url}?org={org_encoded}"
+            
+            st.success("Link Gerado com Sucesso!")
+            st.markdown(f"**Link para {form_selecionado} (Organização: {org_coletora_input}):**")
+            # st.code exibe o link em uma caixa de texto fácil de copiar
+            st.code(link_final, language=None)
+            st.markdown("Copie este link e envie para os respondentes desta organização.")
 
 # ##### CABEÇALHO MODIFICADO #####
 st.title("📊 Dashboard de Análise de Respostas")
