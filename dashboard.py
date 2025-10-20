@@ -5,6 +5,8 @@ import gspread
 import matplotlib.pyplot as plt
 from datetime import datetime
 import urllib.parse
+import hmac
+import hashlib
 
 # --- CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(
@@ -392,6 +394,7 @@ def load_all_data(_spreadsheet, _df_master):
     consolidated_df['Data'] = pd.to_datetime(consolidated_df['Data'], errors='coerce', dayfirst=True)
     consolidated_df = consolidated_df.dropna(subset=['Data'])
     return consolidated_df
+
 # --- GERADOR DE LINKS DE FORMULÁRIO ---
 st.header("🔗 Gerador de Links para Formulários")
 
@@ -408,24 +411,30 @@ with st.container(border=True):
 
     form_selecionado = st.selectbox("Selecione o Formulário:", options=list(apps_urls.keys()))
 
-    if st.button("Gerar Link", key="generate_link_button"):
+    if st.button("Gerar Link Seguro", key="generate_link_button"):
         if not org_coletora_input:
             st.warning("Por favor, insira o nome da Organização Coletora.")
         elif not form_selecionado:
              st.warning("Por favor, selecione um formulário.")
         else:
             base_url = apps_urls[form_selecionado]
-            # Codifica o nome da organização para ser seguro na URL
             org_encoded = urllib.parse.quote(org_coletora_input)
-            # Monta a URL final com o parâmetro 'org'
-            link_final = f"{base_url}?org={org_encoded}"
             
-            st.success("Link Gerado com Sucesso!")
-            st.markdown(f"**Link para {form_selecionado} (Organização: {org_coletora_input}):**")
-            # st.code exibe o link em uma caixa de texto fácil de copiar
-            st.code(link_final, language=None)
-            st.markdown("Copie este link e envie para os respondentes desta organização.")
+            # --- Lógica de Assinatura ---
+            secret_key = st.secrets["LINK_SECRET_KEY"].encode('utf-8')
+            message = org_coletora_input.encode('utf-8') # Assina o nome original, não o codificado
+            
+            # Calcula a assinatura HMAC-SHA256
+            signature = hmac.new(secret_key, message, hashlib.sha256).hexdigest()
+            # --- Fim da Lógica de Assinatura ---
 
+            # Monta a URL final com organização e assinatura
+            link_final = f"{base_url}?org={org_encoded}&sig={signature}"
+            
+            st.success("Link Seguro Gerado!")
+            st.markdown(f"**Link para {form_selecionado} (Organização: {org_coletora_input}):**")
+            st.code(link_final, language=None)
+            st.markdown("Copie este link. A organização não poderá ser alterada pelo usuário.")
 # ##### CABEÇALHO MODIFICADO #####
 st.title("📊 Dashboard de Análise de Respostas")
 
