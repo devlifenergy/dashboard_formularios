@@ -403,7 +403,7 @@ with st.container(border=True):
 
     # Mapeamento de nomes amigáveis para as URLs base dos seus apps
     apps_urls = {
-        "Fatores Essenciais": "https://seu-app-fatores-essenciais.streamlit.app/",
+        "Fatores Essenciais": "https://wedja-fatoresessenciais.streamlit.app/",
     }
 
     form_selecionado = st.selectbox("Selecione o Formulário:", options=list(apps_urls.keys()))
