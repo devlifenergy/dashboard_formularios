@@ -493,57 +493,68 @@ if dimensoes_selecionadas:
 # --- EXIBIÇÃO DOS RESULTADOS ---
 st.header("Análise de Desempenho por Dimensão")
 
+resumo_dimensoes = pd.DataFrame() # Inicializa vazio
+if not df_filtrado.empty:
+    resumo_dimensoes = df_filtrado.groupby('Dimensão')['Pontuação'].mean().round(2).reset_index()
+    resumo_dimensoes = resumo_dimensoes.rename(columns={'Pontuação': 'Média'}).sort_values('Média', ascending=False)
+    # Remove linhas onde a média não pôde ser calculada (caso raro)
+    resumo_dimensoes = resumo_dimensoes.dropna(subset=['Média']) 
+
+# ##### LÓGICA CONDICIONAL REFINADA #####
 if not respondentes_selecionados and not dimensoes_selecionadas:
-    # Caso 1: Nenhum filtro principal selecionado
+    # Caso 1: NENHUM filtro principal aplicado
     st.info("Selecione os dados para vê-los no seu dashboard!")
-    df_para_expandir = df_filtrado # Mostra todos os dados no expander por padrão
+    df_para_expandir = df # Mostra todos os dados no expander
+
+elif respondentes_selecionados and not dimensoes_selecionadas:
+    # Caso 2: APENAS Respondente(s) selecionado(s), NENHUMA Dimensão
+    st.info("Por favor selecione no mínimo 2 dimensões para ver o gráfico")
+    st.subheader("Pontuação Média por Dimensão (para respondente(s) selecionado(s))")
+    if not resumo_dimensoes.empty:
+        st.dataframe(resumo_dimensoes, use_container_width=True, hide_index=True)
+    else:
+        st.info("Nenhuma resposta válida encontrada para este(s) respondente(s).")
+    df_para_expandir = df_filtrado # Mostra dados filtrados por respondente
+
 else:
-    # Caso 2: Pelo menos um filtro foi selecionado
+    # Caso 3: Dimensões foram selecionadas (com ou sem Respondente)
     if df_filtrado.empty:
         st.info("Nenhuma resposta encontrada para os filtros selecionados.")
-        df_para_expandir = df_filtrado # Mostra o dataframe vazio no expander
+        df_para_expandir = df_filtrado
+    elif resumo_dimensoes.empty:
+         st.info("Nenhuma resposta válida (1-5) para gerar a análise por dimensão com os filtros atuais.")
+         df_para_expandir = df_filtrado
     else:
-        # Calcula o resumo das dimensões COM BASE NOS DADOS FILTRADOS
-        resumo_dimensoes = df_filtrado.groupby('Dimensão')['Pontuação'].mean().round(2).reset_index()
-        resumo_dimensoes = resumo_dimensoes.rename(columns={'Pontuação': 'Média'}).sort_values('Média', ascending=False)
-        
-        # Verifica se há dados válidos para análise após o groupby
-        if resumo_dimensoes.empty or resumo_dimensoes['Média'].isnull().all():
-            st.info("Nenhuma resposta válida (1-5) para gerar a análise por dimensão com os filtros atuais.")
-            df_para_expandir = df_filtrado # Mostra os dados filtrados no expander
+        # Exibe a tabela de médias
+        st.subheader("Pontuação Média por Dimensão")
+        st.dataframe(resumo_dimensoes, use_container_width=True, hide_index=True)
+
+        st.subheader("Gráfico Comparativo por Dimensão")
+        # Verifica se há pelo menos 2 dimensões RESULTANTES para plotar
+        if len(resumo_dimensoes) >= 2:
+            # Plota o gráfico
+            labels = resumo_dimensoes["Dimensão"]
+            values = resumo_dimensoes["Média"]
+            slice_labels = [str(i+1) for i in range(len(labels))]
+
+            fig, ax = plt.subplots(figsize=(8, 6))
+            wedges, texts = ax.pie(
+                values, 
+                labels=slice_labels, 
+                startangle=90,
+                textprops=dict(color="black", size=14, weight="bold") 
+            )
+            ax.axis('equal')
+            st.pyplot(fig)
+
+            st.subheader("Legenda do Gráfico")
+            for i, row in resumo_dimensoes.iterrows():
+                st.markdown(f"**{i+1}:** {row['Dimensão']} (Média: **{row['Média']:.2f}**)")
         else:
-            st.subheader("Pontuação Média por Dimensão")
-            st.dataframe(resumo_dimensoes, use_container_width=True, hide_index=True)
-
-            st.subheader("Gráfico Comparativo por Dimensão")
-            
-            # Condição específica para o gráfico: precisa de pelo menos 2 dimensões
-            if len(resumo_dimensoes) >= 2:
-                # Plota o gráfico
-                labels = resumo_dimensoes["Dimensão"]
-                values = resumo_dimensoes["Média"]
-                slice_labels = [str(i+1) for i in range(len(labels))]
-
-                fig, ax = plt.subplots(figsize=(8, 6))
-                
-                wedges, texts = ax.pie(
-                    values, 
-                    labels=slice_labels, 
-                    startangle=90,
-                    textprops=dict(color="black", size=14, weight="bold") 
-                )
-                ax.axis('equal')
-                
-                st.pyplot(fig)
-
-                st.subheader("Legenda do Gráfico")
-                for i, row in resumo_dimensoes.iterrows():
-                    st.markdown(f"**{i+1}:** {row['Dimensão']} (Média: **{row['Média']:.2f}**)")
-            else:
-                # Exibe a mensagem se houver menos de 2 dimensões resultantes
-                st.info("Por favor selecione no mínimo 2 dimensões para ver o gráfico")# Expander com dados brutos
-df_para_expandir = df_filtrado # Mostra os dados filtrados no expander
+            # Exibe a mensagem se menos de 2 dimensões resultaram do filtro
+            st.info("Por favor selecione no mínimo 2 dimensões para ver o gráfico")
         
+        df_para_expandir = df_filtrado
 # Expander com dados brutos (agora usa df_para_expandir)
 with st.expander("Ver dados filtrados"):
     st.dataframe(df_para_expandir)
