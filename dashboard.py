@@ -512,6 +512,7 @@ else:
             
             # Verifica se há pelo menos 3 dimensões para plotar
             if len(resumo_dimensoes) >= 3:
+                # Se há 3 ou mais dimensões, plota o gráfico
                 labels = resumo_dimensoes["Dimensão"]
                 values = resumo_dimensoes["Média"]
                 slice_labels = [str(i+1) for i in range(len(labels))]
@@ -532,9 +533,8 @@ else:
                 for i, row in resumo_dimensoes.iterrows():
                     st.markdown(f"**{i+1}:** {row['Dimensão']} (Média: **{row['Média']:.2f}**)")
             else:
-                # Exibe a mensagem se houver menos de 3 dimensões
+                # Se há menos de 3 dimensões, exibe a mensagem de orientação
                 st.info("Por favor selecione no mínimo 3 dimensões para ver o gráfico")
-            # ##### FIM DA ALTERAÇÃO #####
 # Expander com dados brutos
 with st.expander("Ver dados filtrados"):
     st.dataframe(df_filtrado)
