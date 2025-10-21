@@ -494,25 +494,32 @@ if dimensoes_selecionadas:
 st.header("Análise de Desempenho por Dimensão")
 
 if not respondentes_selecionados and not dimensoes_selecionadas:
+    # Caso 1: Nenhum filtro principal selecionado
     st.info("Selecione os dados para vê-los no seu dashboard!")
+    df_para_expandir = df_filtrado # Mostra todos os dados no expander por padrão
 else:
+    # Caso 2: Pelo menos um filtro foi selecionado
     if df_filtrado.empty:
         st.info("Nenhuma resposta encontrada para os filtros selecionados.")
+        df_para_expandir = df_filtrado # Mostra o dataframe vazio no expander
     else:
+        # Calcula o resumo das dimensões COM BASE NOS DADOS FILTRADOS
         resumo_dimensoes = df_filtrado.groupby('Dimensão')['Pontuação'].mean().round(2).reset_index()
         resumo_dimensoes = resumo_dimensoes.rename(columns={'Pontuação': 'Média'}).sort_values('Média', ascending=False)
         
+        # Verifica se há dados válidos para análise após o groupby
         if resumo_dimensoes.empty or resumo_dimensoes['Média'].isnull().all():
-            st.info("Nenhuma resposta válida para gerar a análise por dimensão.")
+            st.info("Nenhuma resposta válida (1-5) para gerar a análise por dimensão com os filtros atuais.")
+            df_para_expandir = df_filtrado # Mostra os dados filtrados no expander
         else:
             st.subheader("Pontuação Média por Dimensão")
             st.dataframe(resumo_dimensoes, use_container_width=True, hide_index=True)
 
             st.subheader("Gráfico Comparativo por Dimensão")
             
-            # Verifica se há pelo menos 3 dimensões para plotar
-            if len(resumo_dimensoes) >= 3:
-                # Se há 3 ou mais dimensões, plota o gráfico
+            # Condição específica para o gráfico: precisa de pelo menos 2 dimensões
+            if len(resumo_dimensoes) >= 2:
+                # Plota o gráfico
                 labels = resumo_dimensoes["Dimensão"]
                 values = resumo_dimensoes["Média"]
                 slice_labels = [str(i+1) for i in range(len(labels))]
@@ -533,9 +540,8 @@ else:
                 for i, row in resumo_dimensoes.iterrows():
                     st.markdown(f"**{i+1}:** {row['Dimensão']} (Média: **{row['Média']:.2f}**)")
             else:
-                # Se há menos de 3 dimensões, exibe a mensagem de orientação
-                st.info("Por favor selecione no mínimo 3 dimensões para ver o gráfico")
-# Expander com dados brutos
+                # Exibe a mensagem se houver menos de 2 dimensões resultantes
+                st.info("Por favor selecione no mínimo 2 dimensões para ver o gráfico")# Expander com dados brutos
 with st.expander("Ver dados filtrados"):
     st.dataframe(df_filtrado)
 
