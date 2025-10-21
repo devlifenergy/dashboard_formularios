@@ -509,27 +509,32 @@ else:
             st.dataframe(resumo_dimensoes, use_container_width=True, hide_index=True)
 
             st.subheader("Gráfico Comparativo por Dimensão")
-
-            labels = resumo_dimensoes["Dimensão"]
-            values = resumo_dimensoes["Média"]
-            slice_labels = [str(i+1) for i in range(len(labels))]
-
-            fig, ax = plt.subplots(figsize=(8, 6))
             
-            wedges, texts = ax.pie(
-                values, 
-                labels=slice_labels, 
-                startangle=90,
-                textprops=dict(color="black", size=14, weight="bold") 
-            )
-            ax.axis('equal')
-            
-            st.pyplot(fig)
+            # Verifica se há pelo menos 3 dimensões para plotar
+            if len(resumo_dimensoes) >= 3:
+                labels = resumo_dimensoes["Dimensão"]
+                values = resumo_dimensoes["Média"]
+                slice_labels = [str(i+1) for i in range(len(labels))]
 
-            st.subheader("Legenda do Gráfico")
-            for i, row in resumo_dimensoes.iterrows():
-                st.markdown(f"**{i+1}:** {row['Dimensão']} (Média: **{row['Média']:.2f}**)")
+                fig, ax = plt.subplots(figsize=(8, 6))
+                
+                wedges, texts = ax.pie(
+                    values, 
+                    labels=slice_labels, 
+                    startangle=90,
+                    textprops=dict(color="black", size=14, weight="bold") 
+                )
+                ax.axis('equal')
+                
+                st.pyplot(fig)
 
+                st.subheader("Legenda do Gráfico")
+                for i, row in resumo_dimensoes.iterrows():
+                    st.markdown(f"**{i+1}:** {row['Dimensão']} (Média: **{row['Média']:.2f}**)")
+            else:
+                # Exibe a mensagem se houver menos de 3 dimensões
+                st.info("Por favor selecione no mínimo 3 dimensões para ver o gráfico")
+            # ##### FIM DA ALTERAÇÃO #####
 # Expander com dados brutos
 with st.expander("Ver dados filtrados"):
     st.dataframe(df_filtrado)
