@@ -542,8 +542,11 @@ else:
             else:
                 # Exibe a mensagem se houver menos de 2 dimensões resultantes
                 st.info("Por favor selecione no mínimo 2 dimensões para ver o gráfico")# Expander com dados brutos
+df_para_expandir = df_filtrado # Mostra os dados filtrados no expander
+        
+# Expander com dados brutos (agora usa df_para_expandir)
 with st.expander("Ver dados filtrados"):
-    st.dataframe(df_filtrado)
+    st.dataframe(df_para_expandir)
 
 # --- SEÇÃO DE EXPORTAR E LIMPAR ---
 st.header("⚙️ Ações")
