@@ -600,11 +600,10 @@ with st.expander("Ver ações"):
         pd.DataFrame([{"Erro": str(e)}]).to_excel(output, sheet_name='Erro', index=False)
         
     processed_data = output.getvalue()
-    # ##### FIM DA ALTERAÇÃO #####
 
     with col_download:
         st.download_button(
-            label="Exportar Dados", # <-- LABEL ALTERADA
+            label="Exportar Dados", 
             data=processed_data,
             file_name=f"export_completo_respostas_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx", # Nome do arquivo alterado
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -625,7 +624,7 @@ with st.expander("Ver ações"):
         
         confirm_clear = st.checkbox("Confirmo que desejo criar o backup e limpar permanentemente os dados da planilha original.")
 
-        if st.button("2. Criar Backup e Limpar Original", type="primary", disabled=not confirm_clear):
+        if st.button("Criar Backup e Limpar Original", type="primary", disabled=not confirm_clear):
             if confirm_clear:
                 st.session_state.limpar_clicado = True # Marca que o botão foi clicado
                 with st.spinner(f"Criando cópia de backup '{backup_file_name}' e limpando planilhas..."):
@@ -636,10 +635,7 @@ with st.expander("Ver ações"):
                             
                             # --- ETAPA 1: CRIAR A CÓPIA DE BACKUP ---
                             try:
-                                # Usa o cliente gspread (gc) que está no escopo global ou da função connect
-                                # Se 'gc' não estiver acessível aqui, você precisará ajustar a função connect_to_gsheet
-                                # para retorná-lo também ou reconectar aqui. Assumindo que 'gc' está acessível:
-                                gc = gspread.service_account_from_dict(st.secrets["google_credentials"]) # Reconecta para ter o cliente
+                                gc = gspread.service_account_from_dict(st.secrets["google_credentials"])
                                 gc.copy(spreadsheet_to_clear.id, title=backup_file_name, copy_permissions=True)
                                 st.success(f"Cópia de backup '{backup_file_name}' criada com sucesso no Google Drive!")
                             except Exception as backup_error:
@@ -671,7 +667,6 @@ with st.expander("Ver ações"):
                             # Limpa o cache para refletir a mudança no dashboard
                             load_all_data.clear()
                             st.info("Cache de dados limpo. Use 'CARREGAR DADOS' para atualizar.")
-                            # st.rerun() # Opcional: Reexecuta imediatamente
 
                         else:
                             st.error("Falha ao reconectar com a Planilha Google para limpeza.")
@@ -679,14 +674,12 @@ with st.expander("Ver ações"):
                     except Exception as e:
                         st.error(f"Ocorreu um erro geral durante o processo: {e}")
             
-            # Mensagem se clicou sem confirmar (ajustada)
             elif not confirm_clear and 'limpar_clicado' in st.session_state and st.session_state.limpar_clicado:
                  st.warning("Você precisa marcar a caixa de confirmação para criar o backup e limpar os dados.")
-            
-            # Guarda o estado do clique para evitar msg na primeira carga (se necessário)
+        
             if 'limpar_clicado' not in st.session_state:
                  st.session_state.limpar_clicado = False
-            if not confirm_clear: # Só marca se clicou sem confirmar
+            if not confirm_clear:
                  st.session_state.limpar_clicado = True
 
 with st.empty():
