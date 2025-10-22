@@ -616,41 +616,82 @@ with st.expander("Ver ações"):
         )
 
     with col_clear:
-        if st.button("2. Limpar Planilhas de Origem", type="primary", disabled=not confirm_clear):
+        # Define o nome que a cópia de backup terá
+        timestamp_backup = datetime.now().strftime('%Y-%m-%d_%H%M%S')
+        backup_file_name = f"Respostas Formularios - Backup {timestamp_backup}"
+
+        # Atualiza a mensagem de aviso para incluir a informação do backup
+        st.warning(f"""
+            ⚠️ **Atenção:** Antes de limpar, uma cópia completa da planilha 'Respostas Formularios'
+            será criada no seu Google Drive com o nome: **'{backup_file_name}'**.
+            A limpeza dos dados na planilha **original** é permanente e não pode ser desfeita.
+        """)
+        
+        confirm_clear = st.checkbox("Confirmo que desejo criar o backup e limpar permanentemente os dados da planilha original.")
+
+        if st.button("2. Criar Backup e Limpar Original", type="primary", disabled=not confirm_clear):
             if confirm_clear:
-                with st.spinner("Limpando planilhas..."):
+                st.session_state.limpar_clicado = True # Marca que o botão foi clicado
+                with st.spinner(f"Criando cópia de backup '{backup_file_name}' e limpando planilhas..."):
                     try:
+                        # Reconecta para garantir que temos o objeto Spreadsheet atual
                         spreadsheet_to_clear = connect_to_gsheet()
                         if spreadsheet_to_clear:
+                            
+                            # --- ETAPA 1: CRIAR A CÓPIA DE BACKUP ---
+                            try:
+                                # Usa o cliente gspread (gc) que está no escopo global ou da função connect
+                                # Se 'gc' não estiver acessível aqui, você precisará ajustar a função connect_to_gsheet
+                                # para retorná-lo também ou reconectar aqui. Assumindo que 'gc' está acessível:
+                                gc = gspread.service_account_from_dict(st.secrets["google_credentials"]) # Reconecta para ter o cliente
+                                gc.copy(spreadsheet_to_clear.id, title=backup_file_name, copy_permissions=True)
+                                st.success(f"Cópia de backup '{backup_file_name}' criada com sucesso no Google Drive!")
+                            except Exception as backup_error:
+                                st.error(f"Erro ao criar a cópia de backup: {backup_error}")
+                                st.warning("A limpeza da planilha original NÃO será realizada devido ao erro no backup.")
+                                st.stop() # Interrompe a execução se o backup falhar
+
+                            # --- ETAPA 2: LIMPAR A PLANILHA ORIGINAL ---
                             worksheets_to_clear = spreadsheet_to_clear.worksheets()
                             cleared_sheets_count = 0
                             errors_clearing = []
 
                             for ws in worksheets_to_clear:
+                                # Limpa apenas as abas de resposta
                                 if "observacoes" not in ws.title.lower() and "teste" not in ws.title.lower():
                                     try:
+                                        # Apaga da linha 2 até o fim, mantendo o cabeçalho
                                         if ws.row_count > 1:
                                             ws.delete_rows(2, ws.row_count)
                                             cleared_sheets_count += 1
-                                    except Exception as e:
-                                        errors_clearing.append(f"Erro ao limpar '{ws.title}': {e}")
+                                    except Exception as clear_error:
+                                        errors_clearing.append(f"Erro ao limpar aba '{ws.title}': {clear_error}")
                             
                             if cleared_sheets_count > 0:
-                                st.success(f"{cleared_sheets_count} planilha(s) de respostas foram limpas!")
+                                st.success(f"{cleared_sheets_count} aba(s) de respostas na planilha original foram limpas!")
                             if errors_clearing:
                                 for error in errors_clearing: st.error(error)
                             
+                            # Limpa o cache para refletir a mudança no dashboard
                             load_all_data.clear()
-                            st.info("Cache limpo. Use 'CARREGAR DADOS' para atualizar.")
-                            st.rerun()
+                            st.info("Cache de dados limpo. Use 'CARREGAR DADOS' para atualizar.")
+                            # st.rerun() # Opcional: Reexecuta imediatamente
+
                         else:
-                            st.error("Falha ao reconectar para limpeza.")
+                            st.error("Falha ao reconectar com a Planilha Google para limpeza.")
+
                     except Exception as e:
-                        st.error(f"Erro geral durante a limpeza: {e}")
-            elif not confirm_clear and st.session_state.get('limpar_clicado', False): # Só mostra se clicou sem confirmar
-                 st.warning("Você precisa marcar a caixa de confirmação para limpar os dados.")
-            # Guarda o estado do clique para evitar msg na primeira carga
-            st.session_state.limpar_clicado = True
+                        st.error(f"Ocorreu um erro geral durante o processo: {e}")
+            
+            # Mensagem se clicou sem confirmar (ajustada)
+            elif not confirm_clear and 'limpar_clicado' in st.session_state and st.session_state.limpar_clicado:
+                 st.warning("Você precisa marcar a caixa de confirmação para criar o backup e limpar os dados.")
+            
+            # Guarda o estado do clique para evitar msg na primeira carga (se necessário)
+            if 'limpar_clicado' not in st.session_state:
+                 st.session_state.limpar_clicado = False
+            if not confirm_clear: # Só marca se clicou sem confirmar
+                 st.session_state.limpar_clicado = True
 
 with st.empty():
     st.markdown('<div id="autoclick-div">', unsafe_allow_html=True)
