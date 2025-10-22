@@ -575,19 +575,20 @@ with st.expander("Ver ações"):
     # Cria o arquivo Excel em memória para download
     output = io.BytesIO()
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
-        df_export = df_filtrado if not df_filtrado.empty else pd.DataFrame([{"Status": "Nenhum dado para exportar com os filtros atuais"}])
-        # Certifique-se de que colunas sensíveis ou desnecessárias sejam removidas se necessário antes de exportar
-        # Exemplo: df_export = df_export.drop(columns=['Reverso', 'Resposta_Num', 'Pontuação'], errors='ignore') 
-        df_export.to_excel(writer, sheet_name='Dados Filtrados', index=False)
+        df_export = df if not df.empty else pd.DataFrame([{"Status": "Nenhum dado carregado da planilha"}])
+        df_export_cleaned = df_export.drop(columns=['Reverso', 'Resposta_Num', 'Pontuação'], errors='ignore')
+        
+        # Salva na aba com nome apropriado
+        df_export_cleaned.to_excel(writer, sheet_name='Todos os Dados', index=False)
     processed_data = output.getvalue()
 
     with col_download:
         st.download_button(
-            label="1. Baixar Dados Filtrados (Excel)",
+            label="1. Exportar dados", 
             data=processed_data,
-            file_name=f"dashboard_export_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
+            file_name=f"dashboard_export_completo_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx", # Nome do arquivo alterado
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            disabled=df_filtrado.empty 
+            disabled=df.empty 
         )
 
     with col_clear:
