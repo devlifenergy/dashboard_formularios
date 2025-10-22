@@ -561,34 +561,58 @@ with st.expander("Ver dados filtrados"):
 
 # --- SEÇÃO DE EXPORTAR E LIMPAR ---
 st.header("⚙️ Ações")
-
-# Cria um expander para agrupar as ações
 with st.expander("Ver ações"): 
-    # Todo o conteúdo anterior agora fica dentro do expander
-    st.subheader("Exportar Dados Filtrados e Limpar Planilhas de Origem")
-    st.warning("⚠️ **Atenção:** A limpeza das planilhas de origem **apagará permanentemente** todos os dados coletados pelos formulários. Esta ação não pode ser desfeita.")
+    st.subheader("Exportar Todos os Dados e Limpar Planilhas de Origem")
+    st.warning("⚠️ **Atenção:** A limpeza das planilhas de origem **apagará permanentemente** todos os dados coletados. Esta ação não pode ser desfeita.")
     
-    confirm_clear = st.checkbox("Confirmo que desejo limpar permanentemente os dados das planilhas de origem após a exportação.")
+    confirm_clear = st.checkbox("Confirmo que desejo limpar permanentemente os dados das planilhas de origem.")
 
     col_download, col_clear = st.columns(2)
 
-    # Cria o arquivo Excel em memória para download
+    # ##### ALTERAÇÃO: Lógica para exportar TODAS as abas para Excel #####
     output = io.BytesIO()
-    with pd.ExcelWriter(output, engine='openpyxl') as writer:
-        df_export = df if not df.empty else pd.DataFrame([{"Status": "Nenhum dado carregado da planilha"}])
-        df_export_cleaned = df_export.drop(columns=['Reverso', 'Resposta_Num', 'Pontuação'], errors='ignore')
+    try:
+        # Usa o objeto spreadsheet que já temos da conexão
+        if spreadsheet:
+            with pd.ExcelWriter(output, engine='openpyxl') as writer:
+                worksheets_to_export = spreadsheet.worksheets()
+                exported_sheets_count = 0
+                for ws in worksheets_to_export:
+                    # Exporta apenas as abas de resposta (ignora observações, etc.)
+                    if "observacoes" not in ws.title.lower() and "teste" not in ws.title.lower():
+                        try:
+                            data = ws.get_all_records()
+                            if data:
+                                df_sheet = pd.DataFrame(data)
+                                # Opcional: Limpar colunas internas antes de salvar
+                                # df_sheet_cleaned = df_sheet.drop(columns=[col for col in ['Reverso', 'Resposta_Num', 'Pontuação'] if col in df_sheet.columns], errors='ignore')
+                                df_sheet.to_excel(writer, sheet_name=ws.title, index=False)
+                                exported_sheets_count += 1
+                        except Exception as e:
+                            st.error(f"Erro ao processar aba '{ws.title}' para exportação: {e}")
+                
+                # Se nenhuma aba foi exportada, cria uma aba de status
+                if exported_sheets_count == 0:
+                     pd.DataFrame([{"Status": "Nenhuma aba de dados encontrada para exportar."}]).to_excel(writer, sheet_name='Status', index=False)
+        else:
+            # Caso a conexão inicial tenha falhado
+             pd.DataFrame([{"Status": "Não foi possível conectar à Planilha Google."}]).to_excel(output, sheet_name='Erro', index=False)
+
+    except Exception as e:
+        st.error(f"Erro ao gerar arquivo Excel: {e}")
+        # Cria um arquivo de erro se a geração falhar
+        pd.DataFrame([{"Erro": str(e)}]).to_excel(output, sheet_name='Erro', index=False)
         
-        # Salva na aba com nome apropriado
-        df_export_cleaned.to_excel(writer, sheet_name='Todos os Dados', index=False)
     processed_data = output.getvalue()
+    # ##### FIM DA ALTERAÇÃO #####
 
     with col_download:
         st.download_button(
-            label="1. Exportar dados", 
+            label="Exportar Dados", # <-- LABEL ALTERADA
             data=processed_data,
-            file_name=f"dashboard_export_completo_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx", # Nome do arquivo alterado
+            file_name=f"export_completo_respostas_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx", # Nome do arquivo alterado
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            disabled=df.empty 
+            disabled=df.empty # Desabilita se não houver dados carregados
         )
 
     with col_clear:
