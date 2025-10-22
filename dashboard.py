@@ -561,19 +561,23 @@ with st.expander("Ver dados filtrados"):
 
 # --- SEÇÃO DE EXPORTAR E LIMPAR ---
 st.header("⚙️ Ações")
-with st.container(border=True):
+
+# Cria um expander para agrupar as ações
+with st.expander("Ver ações"): 
+    # Todo o conteúdo anterior agora fica dentro do expander
     st.subheader("Exportar Dados Filtrados e Limpar Planilhas de Origem")
     st.warning("⚠️ **Atenção:** A limpeza das planilhas de origem **apagará permanentemente** todos os dados coletados pelos formulários. Esta ação não pode ser desfeita.")
     
     confirm_clear = st.checkbox("Confirmo que desejo limpar permanentemente os dados das planilhas de origem após a exportação.")
 
-    # Colunas para o botão de download e o botão de limpar
     col_download, col_clear = st.columns(2)
 
     # Cria o arquivo Excel em memória para download
     output = io.BytesIO()
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
         df_export = df_filtrado if not df_filtrado.empty else pd.DataFrame([{"Status": "Nenhum dado para exportar com os filtros atuais"}])
+        # Certifique-se de que colunas sensíveis ou desnecessárias sejam removidas se necessário antes de exportar
+        # Exemplo: df_export = df_export.drop(columns=['Reverso', 'Resposta_Num', 'Pontuação'], errors='ignore') 
         df_export.to_excel(writer, sheet_name='Dados Filtrados', index=False)
     processed_data = output.getvalue()
 
@@ -583,17 +587,14 @@ with st.container(border=True):
             data=processed_data,
             file_name=f"dashboard_export_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            # Desabilita se não houver dados filtrados
             disabled=df_filtrado.empty 
         )
 
     with col_clear:
-        # Botão para limpar, só habilitado se a confirmação estiver marcada
         if st.button("2. Limpar Planilhas de Origem", type="primary", disabled=not confirm_clear):
             if confirm_clear:
-                with st.spinner("Limpando planilhas... Esta ação pode levar alguns segundos."):
+                with st.spinner("Limpando planilhas..."):
                     try:
-                        # Reconecta para garantir que temos o objeto Spreadsheet atual
                         spreadsheet_to_clear = connect_to_gsheet()
                         if spreadsheet_to_clear:
                             worksheets_to_clear = spreadsheet_to_clear.worksheets()
@@ -601,10 +602,8 @@ with st.container(border=True):
                             errors_clearing = []
 
                             for ws in worksheets_to_clear:
-                                # Define quais planilhas limpar (todas exceto as de observações)
                                 if "observacoes" not in ws.title.lower() and "teste" not in ws.title.lower():
                                     try:
-                                        # Apaga da linha 2 até o fim, mantendo o cabeçalho
                                         if ws.row_count > 1:
                                             ws.delete_rows(2, ws.row_count)
                                             cleared_sheets_count += 1
@@ -612,24 +611,21 @@ with st.container(border=True):
                                         errors_clearing.append(f"Erro ao limpar '{ws.title}': {e}")
                             
                             if cleared_sheets_count > 0:
-                                st.success(f"{cleared_sheets_count} planilha(s) de respostas foram limpas com sucesso!")
+                                st.success(f"{cleared_sheets_count} planilha(s) de respostas foram limpas!")
                             if errors_clearing:
-                                for error in errors_clearing:
-                                    st.error(error)
+                                for error in errors_clearing: st.error(error)
                             
-                            # Limpa o cache para refletir a mudança
                             load_all_data.clear()
-                            st.info("Cache de dados limpo. Recarregue a página ou use o botão 'CARREGAR DADOS' para atualizar.")
-                            st.rerun() # Força a reexecução para mostrar o estado vazio
-
+                            st.info("Cache limpo. Use 'CARREGAR DADOS' para atualizar.")
+                            st.rerun()
                         else:
-                            st.error("Falha ao reconectar com a Planilha Google para limpeza.")
-
+                            st.error("Falha ao reconectar para limpeza.")
                     except Exception as e:
-                        st.error(f"Ocorreu um erro geral durante a limpeza: {e}")
-            else:
-                # Esta mensagem não deveria aparecer devido ao 'disabled', mas por segurança
-                st.warning("Você precisa marcar a caixa de confirmação para limpar os dados.")
+                        st.error(f"Erro geral durante a limpeza: {e}")
+            elif not confirm_clear and st.session_state.get('limpar_clicado', False): # Só mostra se clicou sem confirmar
+                 st.warning("Você precisa marcar a caixa de confirmação para limpar os dados.")
+            # Guarda o estado do clique para evitar msg na primeira carga
+            st.session_state.limpar_clicado = True
 
 with st.empty():
     st.markdown('<div id="autoclick-div">', unsafe_allow_html=True)
