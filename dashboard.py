@@ -610,7 +610,7 @@ with st.expander("Ver ações"):
             disabled=df.empty # Desabilita se não houver dados carregados
         )
 
-   with col_clear:
+    with col_clear:
         # Define o nome que a cópia de backup terá
         timestamp_backup = datetime.now().strftime('%Y-%m-%d_%H%M%S')
         backup_file_name = f"Respostas Formularios - Backup {timestamp_backup}"
