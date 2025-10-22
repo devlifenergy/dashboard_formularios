@@ -563,8 +563,6 @@ with st.expander("Ver dados filtrados"):
 st.header("⚙️ Ações")
 with st.expander("Ver ações"): 
     st.subheader("Exportar Todos os Dados e Limpar Planilhas de Origem")
-    confirm_clear = st.checkbox("Confirmo que desejo limpar permanentemente os dados das planilhas de origem.")
-
     col_download, col_clear = st.columns(2)
 
     # ##### ALTERAÇÃO: Lógica para exportar TODAS as abas para Excel #####
