@@ -611,86 +611,127 @@ with st.expander("Ver ações"):
         )
 
     with col_clear:
-        # Define o nome que a cópia de backup terá
+        # Define o nome da NOVA planilha de backup
         timestamp_backup = datetime.now().strftime('%Y-%m-%d_%H%M%S')
-        backup_file_name = f"Respostas Formularios - Backup {timestamp_backup}"
+        backup_spreadsheet_name = f"Backup Respostas Formularios - {timestamp_backup}"
 
-        # Atualiza a mensagem de aviso para incluir a informação do backup
+        # Atualiza a mensagem de aviso para o novo processo
         st.warning(f"""
-            ⚠️ **Atenção:** Antes de limpar, uma cópia completa da planilha 'Respostas Formularios'
-            será criada no seu Google Drive com o nome: **'{backup_file_name}'**.
-            A limpeza dos dados na planilha **original** é permanente e não pode ser desfeita.
+            ⚠️ **Atenção:** Ao clicar em 'Limpar Planilha', uma **NOVA PLANILHA** chamada
+            **'{backup_spreadsheet_name}'** será criada no seu Google Drive. Os dados de cada aba de resposta
+            serão copiados para esta nova planilha, um por um.
+            Somente após a cópia bem-sucedida de TODAS as abas, a limpeza dos dados na planilha será realizada. A limpeza é permanente.
         """)
 
-        confirm_clear = st.checkbox("Confirmo que desejo criar o backup e limpar permanentemente os dados da planilha original.")
+        confirm_clear = st.checkbox("Confirmo que desejo criar a nova planilha de backup e limpar os dados da original.")
 
-        if st.button("2. Criar Backup e Limpar Original", type="primary", disabled=not confirm_clear):
+        if st.button("Limpar Planilha", type="primary", disabled=not confirm_clear):
             if confirm_clear:
-                st.session_state.limpar_clicado = True # Marca que o botão foi clicado
-                with st.spinner(f"Processando... Etapa 1/2: Criando cópia de backup '{backup_file_name}'..."):
-                    try:
-                        # Reconecta para garantir que temos o objeto Spreadsheet atual
-                        # e também o cliente 'gc' para usar o método copy()
+                st.session_state.limpar_clicado = True
+                backup_successful = False # Flag para controlar se o backup deu certo
+                
+                try:
+                    # 1. Reconectar e obter cliente gspread
+                    with st.spinner("Conectando ao Google Sheets..."):
                         creds_dict_clear = dict(st.secrets["google_credentials"])
                         creds_dict_clear['private_key'] = creds_dict_clear['private_key'].replace('\\n', '\n')
                         gc_clear = gspread.service_account_from_dict(creds_dict_clear)
-                        spreadsheet_to_clear = gc_clear.open("Respostas Formularios")
+                        source_spreadsheet = gc_clear.open("Respostas Formularios")
+                        st.info("Conectado à planilha de origem.")
 
-                        if spreadsheet_to_clear:
-                            # --- ETAPA 1: CRIAR A CÓPIA DE BACKUP ---
+                    # 2. Criar a nova planilha de backup
+                    with st.spinner(f"Criando planilha de backup '{backup_spreadsheet_name}'..."):
+                        try:
+                            backup_spreadsheet = gc_clear.create(backup_spreadsheet_name)
+                            # Compartilha com a conta de serviço para poder escrever nela
+                            backup_spreadsheet.share(creds_dict_clear['client_email'], perm_type='user', role='writer')
+                            st.success(f"Planilha de backup '{backup_spreadsheet_name}' criada.")
+                            # Tenta deletar a aba padrão 'Sheet1' se ela existir e não for uma das que queremos copiar
                             try:
-                                gc_clear.copy(spreadsheet_to_clear.id, title=backup_file_name, copy_permissions=True)
-                                st.success(f"Cópia de backup '{backup_file_name}' criada com sucesso no Google Drive!")
-                                backup_success = True
-                            except Exception as backup_error:
-                                st.error(f"Erro ao criar a cópia de backup: {backup_error}")
-                                st.warning("A limpeza da planilha original NÃO será realizada devido ao erro no backup.")
-                                backup_success = False
-                                # Não usamos st.stop() para permitir que o app continue rodando
+                                default_sheet = backup_spreadsheet.worksheet('Sheet1')
+                                # Verifica se 'Sheet1' é uma das abas de origem para não deletar por engano
+                                source_sheet_names = [ws.title for ws in source_spreadsheet.worksheets() if "observacoes" not in ws.title.lower() and "teste" not in ws.title.lower()]
+                                if 'Sheet1' not in source_sheet_names:
+                                    backup_spreadsheet.del_worksheet(default_sheet)
+                            except gspread.WorksheetNotFound:
+                                pass # Aba padrão já não existe ou foi renomeada
+                        except Exception as create_error:
+                            st.error(f"Falha ao criar a planilha de backup: {create_error}")
+                            st.stop() # Interrompe se não conseguir criar o backup
 
-                            # --- ETAPA 2: LIMPAR A PLANILHA ORIGINAL (Só se o backup funcionou) ---
-                            if backup_success:
-                                with st.spinner("Etapa 2/2: Limpando planilhas originais..."):
-                                    worksheets_to_clear = spreadsheet_to_clear.worksheets()
-                                    cleared_sheets_count = 0
-                                    errors_clearing = []
+                    # 3. Copiar dados aba por aba
+                    source_worksheets = source_spreadsheet.worksheets()
+                    sheets_to_copy = [ws for ws in source_worksheets if "observacoes" not in ws.title.lower() and "teste" not in ws.title.lower()]
+                    
+                    if not sheets_to_copy:
+                         st.warning("Nenhuma aba de resposta encontrada na planilha de origem para fazer backup.")
+                         backup_successful = True # Considera sucesso pois não há o que copiar
+                    else:
+                        errors_copying = []
+                        progress_bar = st.progress(0, text="Copiando abas...")
+                        for i, ws_source in enumerate(sheets_to_copy):
+                            sheet_title = ws_source.title
+                            progress_text = f"Copiando aba: '{sheet_title}' ({i+1}/{len(sheets_to_copy)})..."
+                            progress_bar.progress((i + 1) / len(sheets_to_copy), text=progress_text)
+                            try:
+                                data = ws_source.get_all_values() # Pega cabeçalho + dados
+                                if data:
+                                    # Cria a nova aba no backup
+                                    ws_target = backup_spreadsheet.add_worksheet(title=sheet_title, rows=len(data), cols=len(data[0]) if data else 1)
+                                    # Escreve os dados
+                                    ws_target.update(data, value_input_option='USER_ENTERED')
+                                else:
+                                    # Cria aba vazia se a original estiver vazia
+                                     backup_spreadsheet.add_worksheet(title=sheet_title, rows=1, cols=1)
+                                st.write(f"- Aba '{sheet_title}' copiada com sucesso.")
 
-                                    for ws in worksheets_to_clear:
-                                        # Limpa apenas as abas de resposta
-                                        if "observacoes" not in ws.title.lower() and "teste" not in ws.title.lower():
-                                            try:
-                                                # Apaga da linha 2 até o fim, mantendo o cabeçalho
-                                                if ws.row_count > 1:
-                                                    ws.delete_rows(2, ws.row_count)
-                                                    cleared_sheets_count += 1
-                                            except Exception as clear_error:
-                                                errors_clearing.append(f"Erro ao limpar aba '{ws.title}': {clear_error}")
+                            except Exception as copy_error:
+                                st.error(f"- Erro ao copiar aba '{sheet_title}': {copy_error}")
+                                errors_copying.append(sheet_title)
+                        
+                        progress_bar.empty() # Remove a barra de progresso
+                        
+                        if not errors_copying:
+                            st.success("Todas as abas de resposta foram copiadas para o backup com sucesso!")
+                            backup_successful = True
+                        else:
+                            st.error(f"Falha ao copiar as seguintes abas: {', '.join(errors_copying)}")
+                            st.warning("A limpeza da planilha original NÃO será realizada.")
+                            backup_successful = False
 
-                                    if cleared_sheets_count > 0:
-                                        st.success(f"{cleared_sheets_count} aba(s) de respostas na planilha original foram limpas!")
-                                    if errors_clearing:
-                                        for error in errors_clearing: st.error(error)
+                    # 4. Limpar a planilha original (SOMENTE se backup foi 100% ok)
+                    if backup_successful:
+                        with st.spinner("Limpando abas da planilha original..."):
+                            cleared_sheets_count = 0
+                            errors_clearing = []
+                            for ws in sheets_to_copy: # Itera novamente nas abas que deveriam ter sido copiadas
+                                try:
+                                    if ws.row_count > 1:
+                                        ws.delete_rows(2, ws.row_count)
+                                        cleared_sheets_count += 1
+                                except Exception as clear_error:
+                                    errors_clearing.append(f"Erro ao limpar aba '{ws.title}': {clear_error}")
+                            
+                            if cleared_sheets_count > 0:
+                                st.success(f"{cleared_sheets_count} aba(s) na planilha original foram limpas (mantendo cabeçalhos).")
+                            if errors_clearing:
+                                for error in errors_clearing: st.error(error)
+                            
+                            # Limpa o cache para o dashboard refletir a mudança
+                            load_all_data.clear()
+                            st.info("Cache de dados do dashboard limpo. Use 'CARREGAR DADOS' para atualizar.")
+                            # st.rerun() # Opcional
 
-                                    # Limpa o cache para refletir a mudança no dashboard
-                                    load_all_data.clear()
-                                    st.info("Cache de dados limpo. Use 'CARREGAR DADOS' para atualizar.")
-                                    # st.rerun() # Opcional: Reexecuta imediatamente
-
-                        else: # Falha na reconexão inicial
-                            st.error("Falha ao reconectar com a Planilha Google para iniciar o processo.")
-
-                    except Exception as e:
-                        st.error(f"Ocorreu um erro geral durante o processo: {e}")
+                except Exception as e:
+                    st.error(f"Ocorreu um erro inesperado durante o processo: {e}")
 
             # Mensagem se clicou sem confirmar
             elif not confirm_clear and 'limpar_clicado' in st.session_state and st.session_state.limpar_clicado:
-                 st.warning("Você precisa marcar a caixa de confirmação para criar o backup e limpar os dados.")
-
-            # Guarda o estado do clique para evitar msg na primeira carga (se necessário)
-            if 'limpar_clicado' not in st.session_state:
-                 st.session_state.limpar_clicado = False
-            if not confirm_clear: 
-                 st.session_state.limpar_clicado = True
+                 st.warning("Você precisa marcar a caixa de confirmação para iniciar o processo.")
+            
+            # Controle do estado do clique
+            if 'limpar_clicado' not in st.session_state: st.session_state.limpar_clicado = False
+            if not confirm_clear: st.session_state.limpar_clicado = True
 
 with st.empty():
     st.markdown('<div id="autoclick-div">', unsafe_allow_html=True)
