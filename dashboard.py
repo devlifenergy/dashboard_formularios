@@ -610,7 +610,7 @@ with st.expander("Ver ações"):
             disabled=df.empty # Desabilita se não houver dados carregados
         )
 
-    with col_clear:
+   with col_clear:
         # Define o nome que a cópia de backup terá
         timestamp_backup = datetime.now().strftime('%Y-%m-%d_%H%M%S')
         backup_file_name = f"Respostas Formularios - Backup {timestamp_backup}"
@@ -621,65 +621,75 @@ with st.expander("Ver ações"):
             será criada no seu Google Drive com o nome: **'{backup_file_name}'**.
             A limpeza dos dados na planilha **original** é permanente e não pode ser desfeita.
         """)
-        
+
         confirm_clear = st.checkbox("Confirmo que desejo criar o backup e limpar permanentemente os dados da planilha original.")
 
-        if st.button("Criar Backup e Limpar Original", type="primary", disabled=not confirm_clear):
+        if st.button("2. Criar Backup e Limpar Original", type="primary", disabled=not confirm_clear):
             if confirm_clear:
                 st.session_state.limpar_clicado = True # Marca que o botão foi clicado
-                with st.spinner(f"Criando cópia de backup '{backup_file_name}' e limpando planilhas..."):
+                with st.spinner(f"Processando... Etapa 1/2: Criando cópia de backup '{backup_file_name}'..."):
                     try:
                         # Reconecta para garantir que temos o objeto Spreadsheet atual
-                        spreadsheet_to_clear = connect_to_gsheet()
+                        # e também o cliente 'gc' para usar o método copy()
+                        creds_dict_clear = dict(st.secrets["google_credentials"])
+                        creds_dict_clear['private_key'] = creds_dict_clear['private_key'].replace('\\n', '\n')
+                        gc_clear = gspread.service_account_from_dict(creds_dict_clear)
+                        spreadsheet_to_clear = gc_clear.open("Respostas Formularios")
+
                         if spreadsheet_to_clear:
-                            
                             # --- ETAPA 1: CRIAR A CÓPIA DE BACKUP ---
                             try:
-                                gc = gspread.service_account_from_dict(st.secrets["google_credentials"])
-                                gc.copy(spreadsheet_to_clear.id, title=backup_file_name, copy_permissions=True)
+                                gc_clear.copy(spreadsheet_to_clear.id, title=backup_file_name, copy_permissions=True)
                                 st.success(f"Cópia de backup '{backup_file_name}' criada com sucesso no Google Drive!")
+                                backup_success = True
                             except Exception as backup_error:
                                 st.error(f"Erro ao criar a cópia de backup: {backup_error}")
                                 st.warning("A limpeza da planilha original NÃO será realizada devido ao erro no backup.")
-                                st.stop() # Interrompe a execução se o backup falhar
+                                backup_success = False
+                                # Não usamos st.stop() para permitir que o app continue rodando
 
-                            # --- ETAPA 2: LIMPAR A PLANILHA ORIGINAL ---
-                            worksheets_to_clear = spreadsheet_to_clear.worksheets()
-                            cleared_sheets_count = 0
-                            errors_clearing = []
+                            # --- ETAPA 2: LIMPAR A PLANILHA ORIGINAL (Só se o backup funcionou) ---
+                            if backup_success:
+                                with st.spinner("Etapa 2/2: Limpando planilhas originais..."):
+                                    worksheets_to_clear = spreadsheet_to_clear.worksheets()
+                                    cleared_sheets_count = 0
+                                    errors_clearing = []
 
-                            for ws in worksheets_to_clear:
-                                # Limpa apenas as abas de resposta
-                                if "observacoes" not in ws.title.lower() and "teste" not in ws.title.lower():
-                                    try:
-                                        # Apaga da linha 2 até o fim, mantendo o cabeçalho
-                                        if ws.row_count > 1:
-                                            ws.delete_rows(2, ws.row_count)
-                                            cleared_sheets_count += 1
-                                    except Exception as clear_error:
-                                        errors_clearing.append(f"Erro ao limpar aba '{ws.title}': {clear_error}")
-                            
-                            if cleared_sheets_count > 0:
-                                st.success(f"{cleared_sheets_count} aba(s) de respostas na planilha original foram limpas!")
-                            if errors_clearing:
-                                for error in errors_clearing: st.error(error)
-                            
-                            # Limpa o cache para refletir a mudança no dashboard
-                            load_all_data.clear()
-                            st.info("Cache de dados limpo. Use 'CARREGAR DADOS' para atualizar.")
+                                    for ws in worksheets_to_clear:
+                                        # Limpa apenas as abas de resposta
+                                        if "observacoes" not in ws.title.lower() and "teste" not in ws.title.lower():
+                                            try:
+                                                # Apaga da linha 2 até o fim, mantendo o cabeçalho
+                                                if ws.row_count > 1:
+                                                    ws.delete_rows(2, ws.row_count)
+                                                    cleared_sheets_count += 1
+                                            except Exception as clear_error:
+                                                errors_clearing.append(f"Erro ao limpar aba '{ws.title}': {clear_error}")
 
-                        else:
-                            st.error("Falha ao reconectar com a Planilha Google para limpeza.")
+                                    if cleared_sheets_count > 0:
+                                        st.success(f"{cleared_sheets_count} aba(s) de respostas na planilha original foram limpas!")
+                                    if errors_clearing:
+                                        for error in errors_clearing: st.error(error)
+
+                                    # Limpa o cache para refletir a mudança no dashboard
+                                    load_all_data.clear()
+                                    st.info("Cache de dados limpo. Use 'CARREGAR DADOS' para atualizar.")
+                                    # st.rerun() # Opcional: Reexecuta imediatamente
+
+                        else: # Falha na reconexão inicial
+                            st.error("Falha ao reconectar com a Planilha Google para iniciar o processo.")
 
                     except Exception as e:
                         st.error(f"Ocorreu um erro geral durante o processo: {e}")
-            
+
+            # Mensagem se clicou sem confirmar
             elif not confirm_clear and 'limpar_clicado' in st.session_state and st.session_state.limpar_clicado:
                  st.warning("Você precisa marcar a caixa de confirmação para criar o backup e limpar os dados.")
-        
+
+            # Guarda o estado do clique para evitar msg na primeira carga (se necessário)
             if 'limpar_clicado' not in st.session_state:
                  st.session_state.limpar_clicado = False
-            if not confirm_clear:
+            if not confirm_clear: 
                  st.session_state.limpar_clicado = True
 
 with st.empty():
