@@ -563,8 +563,6 @@ with st.expander("Ver dados filtrados"):
 st.header("⚙️ Ações")
 with st.expander("Ver ações"): 
     st.subheader("Exportar Todos os Dados e Limpar Planilhas de Origem")
-    st.warning("⚠️ **Atenção:** A limpeza das planilhas de origem **apagará permanentemente** todos os dados coletados. Esta ação não pode ser desfeita.")
-    
     confirm_clear = st.checkbox("Confirmo que desejo limpar permanentemente os dados das planilhas de origem.")
 
     col_download, col_clear = st.columns(2)
