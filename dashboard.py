@@ -393,7 +393,6 @@ def load_all_data(_spreadsheet, _df_master):
         else:
             return row['Resposta_Num']
     consolidated_df['Pontuação'] = consolidated_df.apply(ajustar_reverso, axis=1)
-    consolidated_df['Pontuação'] = pd.to_numeric(consolidated_df['Pontuação'], errors='coerce')
     consolidated_df['Data'] = pd.to_datetime(consolidated_df['Data'], errors='coerce', dayfirst=True)
     consolidated_df = consolidated_df.dropna(subset=['Data'])
     return consolidated_df
@@ -523,6 +522,7 @@ else:
     if df_filtrado.empty:
         st.info("Nenhuma resposta encontrada para os filtros selecionados.")
         df_para_expandir = df_filtrado
+        resumo_dimensoes = resumo_dimensoes.dropna(subset=['Média'])
     elif resumo_dimensoes.empty:
          st.info("Nenhuma resposta válida (1-5) para gerar a análise por dimensão com os filtros atuais.")
          df_para_expandir = df_filtrado
