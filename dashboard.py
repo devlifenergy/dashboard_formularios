@@ -626,7 +626,7 @@ with st.expander("Ver ações"):
 
         confirm_clear = st.checkbox("Confirmo que desejo criar a nova planilha de backup e limpar os dados da original.")
         
-        if st.button("Criar Cópia de Backup", type="secondary", disabled=not confirm_clear): 
+        if st.button("Criar Backup e Limpar Dados", type="secondary", disabled=not confirm_clear): 
             with st.spinner("Acionando script de backup no Google Sheets..."):
                 try:
                     url = st.secrets["APPS_SCRIPT_URL"]
