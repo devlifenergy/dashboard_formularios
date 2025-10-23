@@ -8,6 +8,7 @@ import urllib.parse
 import hmac
 import hashlib
 import io
+import requests
 
 # --- CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(
@@ -625,113 +626,28 @@ with st.expander("Ver ações"):
 
         confirm_clear = st.checkbox("Confirmo que desejo criar a nova planilha de backup e limpar os dados da original.")
 
-        if st.button("Limpar Planilha", type="primary", disabled=not confirm_clear):
-            if confirm_clear:
-                st.session_state.limpar_clicado = True
-                backup_successful = False # Flag para controlar se o backup deu certo
-                
+        if st.button("Criar Cópia de Backup", type="secondary"): 
+            with st.spinner("Acionando script de backup no Google Sheets..."):
                 try:
-                    # 1. Reconectar e obter cliente gspread
-                    with st.spinner("Conectando ao Google Sheets..."):
-                        creds_dict_clear = dict(st.secrets["google_credentials"])
-                        creds_dict_clear['private_key'] = creds_dict_clear['private_key'].replace('\\n', '\n')
-                        gc_clear = gspread.service_account_from_dict(creds_dict_clear)
-                        source_spreadsheet = gc_clear.open("Respostas Formularios")
-                        st.info("Conectado à planilha de origem.")
+                    url = st.secrets["APPS_SCRIPT_URL"]
+                    token = st.secrets["APPS_SCRIPT_TOKEN"]
+                    url_com_token = f"{url}?token={token}" # Adiciona o token à URL
 
-                    # 2. Criar a nova planilha de backup
-                    with st.spinner(f"Criando planilha de backup '{backup_spreadsheet_name}'..."):
-                        try:
-                            backup_spreadsheet = gc_clear.create(backup_spreadsheet_name)
-                            # Compartilha com a conta de serviço para poder escrever nela
-                            backup_spreadsheet.share(creds_dict_clear['client_email'], perm_type='user', role='writer')
-                            st.success(f"Planilha de backup '{backup_spreadsheet_name}' criada.")
-                            # Tenta deletar a aba padrão 'Sheet1' se ela existir e não for uma das que queremos copiar
-                            try:
-                                default_sheet = backup_spreadsheet.worksheet('Sheet1')
-                                # Verifica se 'Sheet1' é uma das abas de origem para não deletar por engano
-                                source_sheet_names = [ws.title for ws in source_spreadsheet.worksheets() if "observacoes" not in ws.title.lower() and "teste" not in ws.title.lower()]
-                                if 'Sheet1' not in source_sheet_names:
-                                    backup_spreadsheet.del_worksheet(default_sheet)
-                            except gspread.WorksheetNotFound:
-                                pass # Aba padrão já não existe ou foi renomeada
-                        except Exception as create_error:
-                            st.error(f"Falha ao criar a planilha de backup: {create_error}")
-                            st.stop() # Interrompe se não conseguir criar o backup
+                    # Faz a requisição GET
+                    response = requests.get(url_com_token, timeout=120) 
+                    response.raise_for_status() 
+                    result = response.json()
 
-                    # 3. Copiar dados aba por aba
-                    source_worksheets = source_spreadsheet.worksheets()
-                    sheets_to_copy = [ws for ws in source_worksheets if "observacoes" not in ws.title.lower() and "teste" not in ws.title.lower()]
-                    
-                    if not sheets_to_copy:
-                         st.warning("Nenhuma aba de resposta encontrada na planilha de origem para fazer backup.")
-                         backup_successful = True # Considera sucesso pois não há o que copiar
+                    if result.get("status") == "success":
+                        st.success(result.get("message", "Backup concluído!"))
+                        st.write(f"Nome do arquivo de backup: {result.get('backup_name', 'N/A')}")
                     else:
-                        errors_copying = []
-                        progress_bar = st.progress(0, text="Copiando abas...")
-                        for i, ws_source in enumerate(sheets_to_copy):
-                            sheet_title = ws_source.title
-                            progress_text = f"Copiando aba: '{sheet_title}' ({i+1}/{len(sheets_to_copy)})..."
-                            progress_bar.progress((i + 1) / len(sheets_to_copy), text=progress_text)
-                            try:
-                                data = ws_source.get_all_values() # Pega cabeçalho + dados
-                                if data:
-                                    # Cria a nova aba no backup
-                                    ws_target = backup_spreadsheet.add_worksheet(title=sheet_title, rows=len(data), cols=len(data[0]) if data else 1)
-                                    # Escreve os dados
-                                    ws_target.update(data, value_input_option='USER_ENTERED')
-                                else:
-                                    # Cria aba vazia se a original estiver vazia
-                                     backup_spreadsheet.add_worksheet(title=sheet_title, rows=1, cols=1)
-                                st.write(f"- Aba '{sheet_title}' copiada com sucesso.")
+                        st.error(f"Erro retornado pelo script: {result.get('message', 'Erro desconhecido')}")
 
-                            except Exception as copy_error:
-                                st.error(f"- Erro ao copiar aba '{sheet_title}': {copy_error}")
-                                errors_copying.append(sheet_title)
-                        
-                        progress_bar.empty() # Remove a barra de progresso
-                        
-                        if not errors_copying:
-                            st.success("Todas as abas de resposta foram copiadas para o backup com sucesso!")
-                            backup_successful = True
-                        else:
-                            st.error(f"Falha ao copiar as seguintes abas: {', '.join(errors_copying)}")
-                            st.warning("A limpeza da planilha original NÃO será realizada.")
-                            backup_successful = False
-
-                    # 4. Limpar a planilha original (SOMENTE se backup foi 100% ok)
-                    if backup_successful:
-                        with st.spinner("Limpando abas da planilha original..."):
-                            cleared_sheets_count = 0
-                            errors_clearing = []
-                            for ws in sheets_to_copy: # Itera novamente nas abas que deveriam ter sido copiadas
-                                try:
-                                    if ws.row_count > 1:
-                                        ws.delete_rows(2, ws.row_count)
-                                        cleared_sheets_count += 1
-                                except Exception as clear_error:
-                                    errors_clearing.append(f"Erro ao limpar aba '{ws.title}': {clear_error}")
-                            
-                            if cleared_sheets_count > 0:
-                                st.success(f"{cleared_sheets_count} aba(s) na planilha original foram limpas (mantendo cabeçalhos).")
-                            if errors_clearing:
-                                for error in errors_clearing: st.error(error)
-                            
-                            # Limpa o cache para o dashboard refletir a mudança
-                            load_all_data.clear()
-                            st.info("Cache de dados do dashboard limpo. Use 'CARREGAR DADOS' para atualizar.")
-                            # st.rerun() # Opcional
-
+                except requests.exceptions.RequestException as req_err:
+                    st.error(f"Erro de conexão ao acionar o script: {req_err}")
                 except Exception as e:
-                    st.error(f"Ocorreu um erro inesperado durante o processo: {e}")
-
-            # Mensagem se clicou sem confirmar
-            elif not confirm_clear and 'limpar_clicado' in st.session_state and st.session_state.limpar_clicado:
-                 st.warning("Você precisa marcar a caixa de confirmação para iniciar o processo.")
-            
-            # Controle do estado do clique
-            if 'limpar_clicado' not in st.session_state: st.session_state.limpar_clicado = False
-            if not confirm_clear: st.session_state.limpar_clicado = True
+                    st.error(f"Ocorreu um erro inesperado: {e}")
 
 with st.empty():
     st.markdown('<div id="autoclick-div">', unsafe_allow_html=True)
