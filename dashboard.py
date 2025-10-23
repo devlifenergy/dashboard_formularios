@@ -393,6 +393,7 @@ def load_all_data(_spreadsheet, _df_master):
         else:
             return row['Resposta_Num']
     consolidated_df['Pontuação'] = consolidated_df.apply(ajustar_reverso, axis=1)
+    consolidated_df['Pontuação'] = pd.to_numeric(consolidated_df['Pontuação'], errors='coerce')
     consolidated_df['Data'] = pd.to_datetime(consolidated_df['Data'], errors='coerce', dayfirst=True)
     consolidated_df = consolidated_df.dropna(subset=['Data'])
     return consolidated_df
