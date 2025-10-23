@@ -625,30 +625,29 @@ with st.expander("Ver ações"):
         """)
 
         confirm_clear = st.checkbox("Confirmo que desejo criar a nova planilha de backup e limpar os dados da original.")
+        
+        if st.button("Criar Cópia de Backup", type="secondary", disabled=not confirm_clear): 
+            with st.spinner("Acionando script de backup no Google Sheets..."):
+                try:
+                    url = st.secrets["APPS_SCRIPT_URL"]
+                    token = st.secrets["APPS_SCRIPT_TOKEN"]
+                    url_com_token = f"{url}?token={token}" # Adiciona o token à URL
 
-        if st.button("Limpar Planilha", type="primary", disabled=not confirm_clear):
-            if st.button("Criar Cópia de Backup", type="secondary"): 
-                with st.spinner("Acionando script de backup no Google Sheets..."):
-                    try:
-                        url = st.secrets["APPS_SCRIPT_URL"]
-                        token = st.secrets["APPS_SCRIPT_TOKEN"]
-                        url_com_token = f"{url}?token={token}" # Adiciona o token à URL
+                    # Faz a requisição GET
+                    response = requests.get(url_com_token, timeout=120) 
+                    response.raise_for_status() 
+                    result = response.json()
 
-                        # Faz a requisição GET
-                        response = requests.get(url_com_token, timeout=120) 
-                        response.raise_for_status() 
-                        result = response.json()
+                    if result.get("status") == "success":
+                        st.success(result.get("message", "Backup concluído!"))
+                        st.write(f"Nome do arquivo de backup: {result.get('backup_name', 'N/A')}")
+                    else:
+                        st.error(f"Erro retornado pelo script: {result.get('message', 'Erro desconhecido')}")
 
-                        if result.get("status") == "success":
-                            st.success(result.get("message", "Backup concluído!"))
-                            st.write(f"Nome do arquivo de backup: {result.get('backup_name', 'N/A')}")
-                        else:
-                            st.error(f"Erro retornado pelo script: {result.get('message', 'Erro desconhecido')}")
-
-                    except requests.exceptions.RequestException as req_err:
-                        st.error(f"Erro de conexão ao acionar o script: {req_err}")
-                    except Exception as e:
-                        st.error(f"Ocorreu um erro inesperado: {e}")
+                except requests.exceptions.RequestException as req_err:
+                    st.error(f"Erro de conexão ao acionar o script: {req_err}")
+                except Exception as e:
+                    st.error(f"Ocorreu um erro inesperado: {e}")
 
 with st.empty():
     st.markdown('<div id="autoclick-div">', unsafe_allow_html=True)
