@@ -377,6 +377,7 @@ with st.container(border=True):
         "Inventário de Infraestrutura Likert": "https://wedja-likert.streamlit.app/",
         "Inventário Organizacional": "https://wedja-organizacional.streamlit.app/",
         "Cultura Organizacional e Saúde Emocional": "https://wedja-saudeemocional.streamlit.app/",
+        "Nome do Formulario": "https://wedja-nomedoformulario.streamlit.app/",
     }
 
     form_selecionado = st.selectbox("Selecione o Formulário:", options=list(apps_urls.keys()))
