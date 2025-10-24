@@ -314,37 +314,53 @@ def connect_to_gsheet():
 
 @st.cache_data(ttl=600)
 def load_all_data(_spreadsheet, _df_master):
-    # O _rerun_trigger não é usado, mas sua mudança invalida o cache
     if _spreadsheet is None: return pd.DataFrame()
     worksheets = _spreadsheet.worksheets()
     all_dfs = []
-    # ... (lógica de leitura das abas permanece a mesma) ...
+    
     for ws in worksheets:
          if "observacoes" not in ws.title.lower() and "teste" not in ws.title.lower():
              try:
                  data = ws.get_all_records()
                  if data:
-                     df = pd.DataFrame(data)
-                     all_dfs.append(df)
+                     df_sheet = pd.DataFrame(data)
+                     
+                     # --- INÍCIO DA CORREÇÃO ---
+                     # Padroniza o nome da coluna de data
+                     if 'Data / Turno' in df_sheet.columns:
+                         df_sheet = df_sheet.rename(columns={'Data / Turno': 'Data'})
+                     # --- FIM DA CORREÇÃO ---
+
+                     all_dfs.append(df_sheet)
              except Exception as e:
                  st.warning(f"Não foi possível ler a aba '{ws.title}': {e}")
+    
     if not all_dfs: return pd.DataFrame()
-    consolidated_df = pd.concat(all_dfs, ignore_index=True)
+    
+    try:
+        consolidated_df = pd.concat(all_dfs, ignore_index=True)
+    except pd.errors.InvalidIndexError:
+        # Ocorre se uma aba estiver completamente vazia (sem cabeçalhos)
+        st.error("Uma ou mais abas de resposta parecem estar vazias (sem cabeçalhos). Verifique sua Planilha Google.")
+        return pd.DataFrame()
+
     
     # --- CÁLCULO DA PONTUAÇÃO ---
     consolidated_df = pd.merge(consolidated_df, _df_master[['Item', 'Reverso']], on='Item', how='left')
     consolidated_df['Resposta_Num'] = pd.to_numeric(consolidated_df['Resposta'], errors='coerce')
+    
     def ajustar_reverso(row):
-        # Primeiro, verifica se a pontuação é válida
-        if pd.isna(row['Resposta_Num']): 
-            return None
-        # Verifica se a coluna 'Reverso' existe, não é NaN E é igual a 'SIM'
+        if pd.isna(row['Resposta_Num']): return None
         if pd.notna(row['Reverso']) and row['Reverso'] == 'SIM': 
             return 6 - row['Resposta_Num']
-        # Caso contrário, retorna a pontuação normal
         else:
             return row['Resposta_Num']
+        
     consolidated_df['Pontuação'] = consolidated_df.apply(ajustar_reverso, axis=1)
+    
+    # Força a coluna 'Pontuação' a ser numérica para evitar o erro de 'object'
+    consolidated_df['Pontuação'] = pd.to_numeric(consolidated_df['Pontuação'], errors='coerce')
+
     consolidated_df['Data'] = pd.to_datetime(consolidated_df['Data'], errors='coerce', dayfirst=True)
     consolidated_df = consolidated_df.dropna(subset=['Data'])
     return consolidated_df
