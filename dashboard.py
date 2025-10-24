@@ -324,13 +324,6 @@ def load_all_data(_spreadsheet, _df_master):
                  data = ws.get_all_records()
                  if data:
                      df_sheet = pd.DataFrame(data)
-                     
-                     # --- INÍCIO DA CORREÇÃO ---
-                     # Padroniza o nome da coluna de data
-                     if 'Data / Turno' in df_sheet.columns:
-                         df_sheet = df_sheet.rename(columns={'Data / Turno': 'Data'})
-                     # --- FIM DA CORREÇÃO ---
-
                      all_dfs.append(df_sheet)
              except Exception as e:
                  st.warning(f"Não foi possível ler a aba '{ws.title}': {e}")
