@@ -295,8 +295,8 @@ def carregar_itens_master():
         ('FRPS06','Fatores de risco psicossocial (FRPS)', 'Mensagens importantes chegam tarde ou de forma confusa.', 'SIM'),
         ('FRPS07','Fatores de risco psicossocial (FRPS)', 'Trabalho frequentemente isolado sem suporte adequado.', 'SIM'),
         ('FRPS08','Fatores de risco psicossocial (FRPS)', 'Em teletrabalho me sinto desconectado(a) da equipe.', 'SIM'),
-        ('FRPS09','Fatores de risco psicossocial (FRPS)', 'Demandas', 'A sobrecarga e prazos incompatíveis são frequentes.', 'SIM'),
-        ('FRPS10','Fatores de risco psicossocial (FRPS)', 'Demandas', 'As expectativas de produtividade são irreais no meu contexto.', 'SIM'),
+        ('FRPS09','Fatores de risco psicossocial (FRPS)', 'A sobrecarga e prazos incompatíveis são frequentes.', 'SIM'),
+        ('FRPS10','Fatores de risco psicossocial (FRPS)', 'As expectativas de produtividade são irreais no meu contexto.', 'SIM'),
         # ... (continue adicionando todos os outros itens aqui) ...
     ]
     df_master = pd.DataFrame(todos_os_itens, columns=["ID_Item", "Dimensão", "Item", "Reverso"])
