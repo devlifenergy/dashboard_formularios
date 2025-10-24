@@ -403,6 +403,7 @@ st.title("📊 Dashboard de Análise de Respostas")
 if st.button("CARREGAR DADOS", key="load_data_button"):
     # Limpa o cache especificamente para esta função
     load_all_data.clear()
+    connect_to_gsheet.clear()
     st.success("Forçando recarregamento dos dados...")
     st.rerun() # Reexecuta o script para carregar os dados frescos
 
