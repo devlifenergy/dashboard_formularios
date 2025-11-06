@@ -9,6 +9,7 @@ import hmac
 import hashlib
 import io
 import requests
+import qrcode
 
 # --- CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(
@@ -358,15 +359,21 @@ def load_all_data(_spreadsheet, _df_master):
     consolidated_df = consolidated_df.dropna(subset=['Data'])
     return consolidated_df
 
+if 'generated_links' not in st.session_state:
+    st.session_state.generated_links = []
+
+# Função callback para alternar a visibilidade do QR Code
+def toggle_qr_visibility(item_index):
+    # Inverte o estado 'show_qr' do item específico
+    st.session_state.generated_links[item_index]["show_qr"] = not st.session_state.generated_links[item_index]["show_qr"]
+
 # --- GERADOR DE LINKS DE FORMULÁRIO ---
 st.header("🔗 Gerador de Links para Formulários")
 
 with st.container(border=True):
-    st.markdown("Preencha o nome da Organização Coletora e selecione o formulário para gerar um link pré-preenchido e não editável.")
+    st.markdown("Preencha o nome da Organização Coletora e selecione um ou mais formulários para gerar os links.")
 
-    # Input para o nome da Organização Coletora
     org_coletora_input = st.text_input("Nome da Organização Coletora:", key="input_org_link")
-
     # Mapeamento de nomes amigáveis para as URLs base dos seus apps
     apps_urls = {
         "Cultura e Prática": "https://wedja-culturaepratica.streamlit.app/",
@@ -378,34 +385,95 @@ with st.container(border=True):
         "Inventário Organizacional": "https://wedja-organizacional.streamlit.app/",
         "Cultura Organizacional e Saúde Emocional": "https://wedja-saudeemocional.streamlit.app/",
     }
+    
+    formularios_selecionados = st.multiselect(
+        "Selecione um ou mais formulários:", 
+        options=list(apps_urls.keys())
+    )
 
-    form_selecionado = st.selectbox("Selecione o Formulário:", options=list(apps_urls.keys()))
-
-    if st.button("Gerar Link Seguro", key="generate_link_button"):
+    if st.button("Gerar Links Seguros", key="generate_link_button"):
         if not org_coletora_input:
             st.warning("Por favor, insira o nome da Organização Coletora.")
-        elif not form_selecionado:
-             st.warning("Por favor, selecione um formulário.")
+        elif not formularios_selecionados:
+             st.warning("Por favor, selecione pelo menos um formulário.")
         else:
-            base_url = apps_urls[form_selecionado]
-            org_encoded = urllib.parse.quote(org_coletora_input)
+            # Limpa a lista de links antiga
+            st.session_state.generated_links = []
             
-            # --- Lógica de Assinatura ---
-            secret_key = st.secrets["LINK_SECRET_KEY"].encode('utf-8')
-            message = org_coletora_input.encode('utf-8') # Assina o nome original, não o codificado
-            
-            # Calcula a assinatura HMAC-SHA256
-            signature = hmac.new(secret_key, message, hashlib.sha256).hexdigest()
-            # --- Fim da Lógica de Assinatura ---
+            try:
+                secret_key = st.secrets["LINK_SECRET_KEY"].encode('utf-8')
+                message = org_coletora_input.encode('utf-8')
+                signature = hmac.new(secret_key, message, hashlib.sha256).hexdigest()
+                org_encoded = urllib.parse.quote(org_coletora_input)
+            except KeyError:
+                st.error("ERRO: 'LINK_SECRET_KEY' não encontrada nos Secrets do Streamlit.")
+                st.stop()
 
-            # Monta a URL final com organização e assinatura
-            link_final = f"{base_url}?org={org_encoded}&sig={signature}"
+            # Preenche a lista no session_state com os novos links
+            for form_nome in formularios_selecionados:
+                base_url = apps_urls[form_nome]
+                link_final = f"{base_url}?org={org_encoded}&sig={signature}"
+                st.session_state.generated_links.append({
+                    "form_nome": form_nome,
+                    "link_final": link_final,
+                    "show_qr": False  # Estado de visibilidade do QR
+                })
             
-            st.success("Link Seguro Gerado!")
-            st.markdown(f"**Link para {form_selecionado} (Organização: {org_coletora_input}):**")
+            st.success(f"Links Gerados para: {org_coletora_input}")
+            # Força a reexecução para que o bloco de exibição abaixo seja executado
+            st.rerun() 
+
+# --- BLOCO DE EXIBIÇÃO DE LINKS E QR CODES (FORA DO BOTÃO) ---
+# Este bloco agora é executado em cada recarga, lendo do session_state
+if 'generated_links' in st.session_state and st.session_state.generated_links:
+    st.markdown("### Links Gerados")
+    
+    for i, item in enumerate(st.session_state.generated_links):
+        form_nome = item["form_nome"]
+        link_final = item["link_final"]
+        show_qr = item["show_qr"]
+
+        col_link, col_button = st.columns([0.8, 0.2])
+
+        with col_link:
+            st.markdown(f"**{form_nome}**")
             st.code(link_final, language=None)
-            st.markdown("Copie este link. A organização não poderá ser alterada pelo usuário.")
-# ##### CABEÇALHO MODIFICADO #####
+        
+        with col_button:
+            # O on_click chama a função callback para alterar o estado
+            st.button(
+                "Ocultar QR" if show_qr else "Mostrar QR Code", 
+                key=f"qr_button_{i}",
+                on_click=toggle_qr_visibility, # Chama a função callback
+                args=(i,) # Passa o índice do item para a função
+            )
+        
+        # Se o estado desse item for 'mostrar', gera e exibe o QR
+        if show_qr:
+            try:
+                img = qrcode.make(link_final)
+                buf = io.BytesIO()
+                img.save(buf, format="PNG")
+                
+                # --- BLOCO PARA CENTRALIZAR O QR CODE ---
+                # Cria 3 colunas (vazia, conteúdo, vazia) para centralizar
+                col_qr_1, col_qr_2, col_qr_3 = st.columns([1, 1, 1]) 
+                with col_qr_2: # Coloca o conteúdo na coluna do meio
+                    st.image(buf.getvalue(), caption=f"QR Code para {form_nome}", width=250)
+                    
+                    # Botão de download para o QR Code específico
+                    st.download_button(
+                        label=f"Baixar QR Code ({form_nome})",
+                        data=buf.getvalue(),
+                        file_name=f"qrcode_{form_nome.replace(' ', '_').lower()}.png",
+                        mime="image/png",
+                        key=f"download_qr_{i}"
+                    )
+            except Exception as e:
+                st.error(f"Erro ao gerar QR Code para {form_nome}: {e}")
+        
+        st.markdown("---") # Separador
+# --- DASHBOARD DE ANÁLISE DE RESPOSTAS ---
 st.title("📊 Dashboard de Análise de Respostas")
 
 # Botão para recarregar dados, agora abaixo do título e à esquerda

@@ -4,3 +4,4 @@ gspread
 matplotlib
 openpyxl
 requests
+qrcode[pil]
