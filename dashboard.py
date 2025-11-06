@@ -367,12 +367,29 @@ def toggle_qr_visibility(item_index):
     # Inverte o estado 'show_qr' do item específico
     st.session_state.generated_links[item_index]["show_qr"] = not st.session_state.generated_links[item_index]["show_qr"]
 
+def limpar_campos_link_gen():
+    """Limpa os campos de input e os links gerados na seção Gerador de Links."""
+    if "input_org_link" in st.session_state:
+        st.session_state.input_org_link = ""
+    if "form_multiselect" in st.session_state:
+        st.session_state.form_multiselect = []
+    if "generated_links" in st.session_state:
+        st.session_state.generated_links = []
+
 # --- GERADOR DE LINKS DE FORMULÁRIO ---
 st.header("🔗 Gerador de Links para Formulários")
 
 with st.container(border=True):
-    st.markdown("Preencha o nome da Organização Coletora e selecione um ou mais formulários para gerar os links.")
-
+    col_titulo, col_botao_limpar = st.columns([0.8, 0.2]) # 80% para o texto, 20% para o botão
+    
+    with col_titulo:
+        st.markdown("Preencha o nome da Organização Coletora e selecione um ou mais formulários.")
+    
+    with col_botao_limpar:
+        st.button("Limpar Campos", 
+                  key="limpar_campos_link_gen", 
+                  on_click=limpar_campos_link_gen,  # Chama a função de callback
+                  use_container_width=True) # Faz o botão preencher a coluna
     org_coletora_input = st.text_input("Nome da Organização Coletora:", key="input_org_link")
     # Mapeamento de nomes amigáveis para as URLs base dos seus apps
     apps_urls = {
@@ -441,11 +458,14 @@ if 'generated_links' in st.session_state and st.session_state.generated_links:
         
         with col_button:
             # O on_click chama a função callback para alterar o estado
+            label_botao_qr = "Ocultar QR" if show_qr else ":material/qr_code_scanner:"
+            
             st.button(
-                "Ocultar QR" if show_qr else "Mostrar QR Code", 
+                label_botao_qr, # Usa a nova variável
                 key=f"qr_button_{i}",
-                on_click=toggle_qr_visibility, # Chama a função callback
-                args=(i,) # Passa o índice do item para a função
+                on_click=toggle_qr_visibility, 
+                args=(i,),
+                help="Mostrar/Ocultar QR Code" # Adiciona uma dica
             )
         
         # Se o estado desse item for 'mostrar', gera e exibe o QR
