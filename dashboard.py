@@ -3,7 +3,7 @@ import streamlit as st
 import pandas as pd
 import gspread
 import matplotlib.pyplot as plt
-from datetime import datetime
+from datetime import datetime, time
 import urllib.parse
 import hmac
 import hashlib
@@ -390,7 +390,18 @@ with st.container(border=True):
                   key="limpar_campos_link_gen", 
                   on_click=limpar_campos_link_gen,  # Chama a função de callback
                   use_container_width=True) # Faz o botão preencher a coluna
+    
     org_coletora_input = st.text_input("Nome da Organização Coletora:", key="input_org_link")
+    
+    # #### Campo para Data de Validade ####
+    col_data, col_check = st.columns(2)
+    with col_data:
+        data_validade = st.date_input("Link válido até (data final):", 
+                                    value=datetime.now().date() + pd.Timedelta(days=30), # Padrão de 30 dias
+                                    min_value=datetime.now().date())
+    with col_check:
+        st.write("") # Espaçador
+        sem_validade = st.checkbox("Sem data de validade (permanente)", key="sem_validade_check")
     # Mapeamento de nomes amigáveis para as URLs base dos seus apps
     apps_urls = {
         "Cultura e Prática": "https://wedja-culturaepratica.streamlit.app/",
@@ -414,31 +425,45 @@ with st.container(border=True):
         elif not formularios_selecionados:
              st.warning("Por favor, selecione pelo menos um formulário.")
         else:
-            # Limpa a lista de links antiga
             st.session_state.generated_links = []
+            
+            # --- LÓGICA DE VALIDADE MODIFICADA ---
+            if sem_validade:
+                validade_timestamp = 9999999999 # Um timestamp no futuro (ano 2286)
+                data_exibicao = "Permanente"
+            else:
+                # Usa o final do dia selecionado
+                validade_datetime = datetime.combine(data_validade, time(23, 59, 59))
+                validade_timestamp = int(validade_datetime.timestamp())
+                data_exibicao = data_validade.strftime('%d/%m/%Y')
             
             try:
                 secret_key = st.secrets["LINK_SECRET_KEY"].encode('utf-8')
-                message = org_coletora_input.encode('utf-8')
-                signature = hmac.new(secret_key, message, hashlib.sha256).hexdigest()
                 org_encoded = urllib.parse.quote(org_coletora_input)
+                
+                # A mensagem assinada agora inclui a organização E o timestamp
+                message = f"{org_coletora_input}|{validade_timestamp}".encode('utf-8')
+                signature = hmac.new(secret_key, message, hashlib.sha256).hexdigest()
+
             except KeyError:
                 st.error("ERRO: 'LINK_SECRET_KEY' não encontrada nos Secrets do Streamlit.")
                 st.stop()
+            # --- FIM DA LÓGICA DE VALIDADE ---
 
             # Preenche a lista no session_state com os novos links
             for form_nome in formularios_selecionados:
                 base_url = apps_urls[form_nome]
-                link_final = f"{base_url}?org={org_encoded}&sig={signature}"
+                # A URL agora inclui a organização (org), a data de expiração (exp) e a assinatura (sig)
+                link_final = f"{base_url}?org={org_encoded}&exp={validade_timestamp}&sig={signature}"
+                
                 st.session_state.generated_links.append({
                     "form_nome": form_nome,
                     "link_final": link_final,
-                    "show_qr": False  # Estado de visibilidade do QR
+                    "show_qr": False
                 })
             
-            st.success(f"Links Gerados para: {org_coletora_input}")
-            # Força a reexecução para que o bloco de exibição abaixo seja executado
-            st.rerun() 
+            st.success(f"Links Gerados para '{org_coletora_input}' (Válido até: {data_exibicao})")
+            st.rerun()
 
 # --- BLOCO DE EXIBIÇÃO DE LINKS E QR CODES (FORA DO BOTÃO) ---
 # Este bloco agora é executado em cada recarga, lendo do session_state
