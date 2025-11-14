@@ -400,7 +400,7 @@ with st.container(border=True):
                                     value=datetime.now().date() + pd.Timedelta(days=30), # Padrão de 30 dias
                                     min_value=datetime.now().date())
     with col_check:
-        st.write("") # Espaçador
+        st.write("") 
         sem_validade = st.checkbox("Sem data de validade (permanente)", key="sem_validade_check")
     # Mapeamento de nomes amigáveis para as URLs base dos seus apps
     apps_urls = {
